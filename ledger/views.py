@@ -33,6 +33,8 @@ def _serialize_draft(draft: DraftEntry) -> dict:
         "amount": f"{draft.amount:.2f}",
         "note": draft.note,
         "status": draft.status,
+        "warnings": draft.warnings or [],
+        "candidates": draft.candidates or [],
         "source_label": draft.source_label,
         "source_text": draft.source_text,
         "batch_id": str(draft.batch_id),

@@ -11,27 +11,88 @@ from ledger.services import LedgerValidationError
 
 @pytest.mark.django_db
 def test_golden_sentences_mock_mode():
-    """Verify all 20 golden sentences in mock mode."""
+    """Verify all 20 golden sentences in mock mode with expected list / no_entry structure."""
     golden_path = settings.BASE_DIR / "tests" / "golden_sentences.json"
     with open(golden_path, "r", encoding="utf-8") as f:
         cases = json.load(f)
 
     for case in cases:
         sentence = case["sentence"]
+        expected = case["expected"]
         res = parse_text(sentence)
 
         assert res.source_label == "mock"
-        if case.get("expected_clarification"):
+        if expected == "no_entry":
             assert len(res.drafts) == 0, f"Expected 0 drafts for '{sentence}'"
             assert res.clarification is not None, f"Expected clarification for '{sentence}'"
         else:
-            assert len(res.drafts) == case["expected_count"], (
-                f"Sentence '{sentence}': expected {case['expected_count']} drafts, got {len(res.drafts)}"
+            assert len(res.drafts) == len(expected), (
+                f"Sentence '{sentence}': expected {len(expected)} drafts, got {len(res.drafts)}"
             )
-            first = res.drafts[0]
-            assert case["expected_customer"].lower() in first.customer_name.lower()
-            assert first.kind == case["expected_kind"]
-            assert abs(first.amount - Decimal(case["expected_amount"])) < Decimal("0.01")
+            for exp_item, got_draft in zip(expected, res.drafts):
+                assert exp_item["customer"].lower() in got_draft.customer_name.lower()
+                assert got_draft.kind == exp_item["kind"]
+                assert abs(got_draft.amount - Decimal(exp_item["amount"])) < Decimal("0.01")
+
+
+@pytest.mark.django_db
+def test_warning_new_customer_payment():
+    """Warning triggered when a payment_received is drafted for a brand new customer."""
+    res = parse_text("Suresh 500 kuduthaar")
+    assert len(res.drafts) == 1
+    draft = res.drafts[0]
+    assert draft.kind == "payment_received"
+    assert any("New customer" in w for w in draft.warnings)
+
+
+@pytest.mark.django_db
+def test_warning_payment_exceeds_balance():
+    """Warning triggered when payment exceeds current balance (balance would go negative)."""
+    from ledger.services import add_entry
+    add_entry("Anitha", "credit_given", "200.00")  # Balance is 200
+
+    res = parse_text("Anitha 600 kuduthanga")  # Paying 600 > 200
+    assert len(res.drafts) == 1
+    draft = res.drafts[0]
+    assert any("exceeds current balance" in w for w in draft.warnings)
+
+
+@pytest.mark.django_db
+def test_warning_unusually_large_amount():
+    """Warning triggered when amount is unusually large compared to past transactions."""
+    from ledger.services import add_entry
+    # History with small transactions (avg ~ 80, max 100)
+    add_entry("Murugan", "credit_given", "60.00")
+    add_entry("Murugan", "credit_given", "100.00")
+    add_entry("Murugan", "credit_given", "80.00")
+
+    res = parse_text("Murugan 5000 udhaar")  # 5000 >> 100
+    assert len(res.drafts) == 1
+    draft = res.drafts[0]
+    assert any("unusually large" in w for w in draft.warnings)
+
+
+@pytest.mark.django_db
+def test_warning_multiple_candidates_requires_choice():
+    """When multiple fuzzy matches are found, candidate list is returned and confirm is blocked until chosen."""
+    Customer.objects.create(name="Karthik Raja")
+    Customer.objects.create(name="Karthik Kumar")
+
+    res = parse_text("Karthik 300 udhaar")
+    assert len(res.drafts) == 1
+    draft = res.drafts[0]
+    assert draft.matched_customer is None
+    assert len(draft.candidates) >= 2
+    assert any("Multiple candidate customers" in w for w in draft.warnings)
+
+    # Attempting confirm without choosing candidate raises error
+    with pytest.raises(ParsingError, match="Multiple candidate customers found"):
+        confirm(draft.id)
+
+    # Confirming with chosen customer succeeds
+    entry, _ = confirm(draft.id, edits={"customer_name": "Karthik Raja"})
+    assert entry.customer.name == "Karthik Raja"
+    assert entry.amount == Decimal("300.00")
 
 
 @pytest.mark.django_db

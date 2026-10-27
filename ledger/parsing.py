@@ -21,7 +21,7 @@ from django.utils import timezone
 
 from .meta_client import MetaClient, MetaClientError
 from .models import Customer, DraftEntry, DraftStatus, EntryKind, LedgerEntry, SourceLabel
-from .prompts import LEDGER_TOOLS, build_system_prompt
+from .prompts import LEDGER_TOOLS, build_chat_messages, build_system_prompt
 from .services import LedgerValidationError, add_entry, get_balance, validate_and_normalize_amount
 
 
@@ -64,30 +64,82 @@ TAMIL_NUMBER_MAP = {
 }
 
 
-def find_matching_customer(raw_name: str) -> Tuple[Optional[Customer], Optional[str]]:
+def find_matching_customers(raw_name: str) -> Tuple[Optional[Customer], List[str]]:
     """Match raw_name against existing customers.
 
     Returns:
-        (exact_match_customer, suggested_match_name)
+        (exact_match_customer, candidates_list)
     """
     clean = raw_name.strip()
     if not clean:
-        return None, None
+        return None, []
 
     # 1. Exact case-insensitive match
     exact = Customer.objects.filter(name__iexact=clean).first()
     if exact:
-        return exact, None
+        return exact, []
 
-    # 2. Conservative fuzzy match suggestion (cutoff >= 0.85)
+    # 2. Fuzzy match candidates (conservative cutoff >= 0.70)
     all_names = list(Customer.objects.values_list("name", flat=True))
-    matches = difflib.get_close_matches(clean, all_names, n=1, cutoff=0.85)
-    if matches:
-        suggested = matches[0]
-        # Return suggested name for shopkeeper approval
-        return None, suggested
+    candidates = difflib.get_close_matches(clean, all_names, n=5, cutoff=0.70)
+    return None, candidates
 
-    return None, None
+
+def find_matching_customer(raw_name: str) -> Tuple[Optional[Customer], Optional[str]]:
+    """Backward compatible wrapper returning (exact, single_suggested)."""
+    exact, candidates = find_matching_customers(raw_name)
+    suggested = candidates[0] if len(candidates) == 1 else None
+    return exact, suggested
+
+
+def generate_draft_warnings(
+    customer_name: str,
+    matched_customer: Optional[Customer],
+    kind: str,
+    amount: Decimal,
+    candidates: List[str],
+) -> List[str]:
+    """Generate intelligent safety warnings for shopkeeper review."""
+    warnings: List[str] = []
+
+    # Warning 1: When fuzzy match finds more than one candidate, require owner to choose
+    if candidates and len(candidates) > 1:
+        warnings.append(
+            f"Multiple candidate customers match '{customer_name}': {', '.join(candidates)}. "
+            "Please select the correct customer before confirming."
+        )
+
+    # Warning 2: New customer with a payment_received
+    if kind == EntryKind.PAYMENT_RECEIVED:
+        if matched_customer is None:
+            warnings.append(
+                f"New customer '{customer_name}' recorded with a payment received. "
+                "Verify if this is an advance payment or if customer name is misspelled."
+            )
+        else:
+            # Warning 3: Payment larger than current balance (balance would go negative)
+            current_balance = get_balance(matched_customer)
+            if amount > current_balance:
+                new_bal = current_balance - amount
+                warnings.append(
+                    f"Payment of Rs.{amount:.2f} exceeds current balance of Rs.{current_balance:.2f}. "
+                    f"Customer balance will become negative (Rs.{new_bal:.2f})."
+                )
+
+    # Warning 4: Amount unusually large vs customer's history
+    if matched_customer:
+        entries = matched_customer.entries.all()
+        if entries.exists():
+            entry_amounts = [e.amount for e in entries]
+            max_prev = max(entry_amounts)
+            avg_prev = sum(entry_amounts, Decimal("0.00")) / len(entry_amounts)
+            if amount > (avg_prev * 3) and amount > (max_prev * 2):
+                warnings.append(
+                    f"Amount Rs.{amount:.2f} is unusually large compared to {matched_customer.name}'s history "
+                    f"(previous max: Rs.{max_prev:.2f}, average: Rs.{avg_prev:.2f})."
+                )
+
+    return warnings
 
 
 def rule_based_fallback_parser(text: str, source_label: str = "fallback") -> Tuple[List[Dict[str, Any]], Optional[str]]:
@@ -238,11 +290,7 @@ def parse_text(text: str) -> ParseResult:
     else:
         # Live Meta AI call
         client = MetaClient(mode="live")
-        sys_prompt = build_system_prompt(existing_customer_names=existing_customers)
-        messages = [
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": clean_text},
-        ]
+        messages = build_chat_messages(existing_customer_names=existing_customers, user_text=clean_text)
 
         try:
             meta_res = client.chat_completion(
@@ -313,22 +361,33 @@ def parse_text(text: str) -> ParseResult:
     created_drafts: List[DraftEntry] = []
     for spec in draft_specs:
         cust_name = spec["customer_name"]
-        exact_customer, suggested_name = find_matching_customer(cust_name)
+        exact_customer, candidates = find_matching_customers(cust_name)
 
         note_val = spec.get("note", "")
-        if suggested_name and not exact_customer:
-            note_val = f"Suggested match: '{suggested_name}' | {note_val}".strip(" |")
+        if len(candidates) == 1 and not exact_customer:
+            note_val = f"Suggested match: '{candidates[0]}' | {note_val}".strip(" |")
+
+        dec_amt = Decimal(str(spec["amount"]))
+        warnings_list = generate_draft_warnings(
+            customer_name=exact_customer.name if exact_customer else cust_name,
+            matched_customer=exact_customer,
+            kind=spec["kind"],
+            amount=dec_amt,
+            candidates=candidates,
+        )
 
         draft = DraftEntry.objects.create(
             source_text=clean_text,
             customer_name=exact_customer.name if exact_customer else cust_name,
             matched_customer=exact_customer,
             kind=spec["kind"],
-            amount=Decimal(str(spec["amount"])),
+            amount=dec_amt,
             note=note_val,
             status=DraftStatus.PENDING,
             source_label=source_label,
             batch_id=batch_id,
+            warnings=warnings_list,
+            candidates=candidates,
         )
         created_drafts.append(draft)
 
@@ -368,6 +427,15 @@ def confirm(draft_id: Union[int, str], edits: Optional[Dict[str, Any]] = None) -
 
     if draft.status == DraftStatus.REJECTED:
         raise ParsingError(f"Draft {draft_id} has been rejected and cannot be confirmed.")
+
+    # Guard: if multiple candidates were found, owner must explicitly choose customer_name
+    if draft.candidates and len(draft.candidates) > 1:
+        chosen = edits.get("customer_name") if edits else None
+        if not chosen:
+            raise ParsingError(
+                f"Multiple candidate customers found: {', '.join(draft.candidates)}. "
+                "You must specify the customer_name in edits before confirming."
+            )
 
     # Apply any owner edits
     final_name = draft.customer_name

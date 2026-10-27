@@ -102,6 +102,8 @@ class DraftEntry(models.Model):
         default=SourceLabel.MOCK,
     )
     batch_id = models.UUIDField(default=uuid.uuid4, db_index=True)
+    warnings = models.JSONField(default=list, blank=True)
+    candidates = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     decided_at = models.DateTimeField(null=True, blank=True)
 

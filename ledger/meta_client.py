@@ -232,6 +232,15 @@ class MetaClient:
                         "completion_tokens": getattr(response.usage, "completion_tokens", 0),
                         "total_tokens": getattr(response.usage, "total_tokens", 0),
                     }
+                    prompt_details = getattr(response.usage, "prompt_tokens_details", None)
+                    if prompt_details:
+                        cached = getattr(prompt_details, "cached_tokens", None)
+                        if cached is not None:
+                            usage_dict["cached_tokens"] = cached
+                    if "cached_tokens" not in usage_dict:
+                        cached_direct = getattr(response.usage, "cached_tokens", None)
+                        if cached_direct is not None:
+                            usage_dict["cached_tokens"] = cached_direct
 
                 first_choice = response.choices[0] if getattr(response, "choices", None) else None
                 message = getattr(first_choice, "message", None) if first_choice else None
