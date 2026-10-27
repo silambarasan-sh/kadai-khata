@@ -39,6 +39,7 @@ def _serialize_draft(draft: DraftEntry) -> dict:
     return {
         "id": draft.id,
         "customer_name": draft.customer_name,
+        "name_latin": getattr(draft, "name_latin", ""),
         "matched_customer_id": draft.matched_customer_id,
         "is_exact_match": bool(draft.matched_customer_id),
         "kind": draft.kind,
@@ -455,6 +456,86 @@ def api_ask(request: HttpRequest) -> JsonResponse:
     mode = data.get("mode")
     result = answer_question(question, mode=mode)
     return JsonResponse({"status": "ok", **result})
+
+
+@csrf_exempt
+@require_POST
+def api_parse_photo(request: HttpRequest) -> JsonResponse:
+    """Parse a notebook photo uploaded via multipart form data into pending DraftEntry records.
+    Image is processed in-memory only and never written to disk or the database.
+    """
+    from .photo_parser import parse_photo_in_memory, ALLOWED_MIME_TYPES, MAX_PHOTO_SIZE_BYTES
+
+    if "image" not in request.FILES:
+        return _json_error("Multipart field 'image' is required.", status=400)
+
+    uploaded_file = request.FILES["image"]
+
+    # Validate size
+    if uploaded_file.size > MAX_PHOTO_SIZE_BYTES:
+        return _json_error(
+            f"Image size exceeds 4MB limit ({uploaded_file.size / 1024 / 1024:.2f}MB).",
+            status=400,
+        )
+
+    # Validate content type
+    content_type = uploaded_file.content_type or ""
+    if content_type not in ALLOWED_MIME_TYPES:
+        name_lower = uploaded_file.name.lower()
+        if name_lower.endswith((".jpg", ".jpeg")):
+            content_type = "image/jpeg"
+        elif name_lower.endswith(".png"):
+            content_type = "image/png"
+        elif name_lower.endswith(".webp"):
+            content_type = "image/webp"
+        else:
+            return _json_error(
+                f"Unsupported file format '{content_type}'. Please upload JPEG, PNG, or WebP.",
+                status=400,
+            )
+
+    # Read bytes into memory strictly
+    image_bytes = uploaded_file.read()
+
+    mode = request.POST.get("mode") or request.GET.get("mode")
+
+    try:
+        result = parse_photo_in_memory(image_bytes=image_bytes, mime_type=content_type, mode=mode)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    except Exception as exc:
+        return _json_error(f"Failed to process image: {str(exc)}", status=500)
+
+    if result.error:
+        return JsonResponse({
+            "status": "error",
+            "error": result.error,
+            "batch_id": str(result.batch_id),
+            "drafts": [],
+            "cancelled_rows": [],
+            "unreadable_rows": [],
+            "page_totals": result.page_totals,
+            "calculated_totals": result.calculated_totals,
+            "total_check": result.total_check,
+            "source_label": result.source_label,
+            "latency_ms": result.latency_ms,
+            "usage": result.usage_tokens,
+        }, status=200)
+
+    return JsonResponse({
+        "status": "ok",
+        "batch_id": str(result.batch_id),
+        "drafts": [_serialize_draft(d) for d in result.drafts],
+        "cancelled_rows": result.cancelled_rows,
+        "unreadable_rows": result.unreadable_rows,
+        "page_totals": result.page_totals,
+        "calculated_totals": result.calculated_totals,
+        "total_check": result.total_check,
+        "source_label": result.source_label,
+        "latency_ms": result.latency_ms,
+        "usage": result.usage_tokens,
+    })
+
 
 
 

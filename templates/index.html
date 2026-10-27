@@ -209,6 +209,49 @@
                     </div>
                 </div>
 
+                <!-- Photo Privacy Notice -->
+                <div id="photo-privacy-banner" class="photo-privacy-banner" style="display: none;">
+                    <span>&#128274; <span data-i18n="photoPrivacyNotice">Photo is processed in memory and not stored. Use test pages only in demos.</span></span>
+                </div>
+
+                <!-- Per-Column Total Check Banner -->
+                <div id="photo-total-check-card" class="card photo-total-card" style="display: none;">
+                    <div class="photo-total-header">
+                        <span class="photo-total-title">&#128202; <span data-i18n="columnTotalCheck">Per-Column Total Check</span></span>
+                        <span id="photo-total-badge" class="badge">Checking...</span>
+                    </div>
+                    <div class="photo-total-grid">
+                        <div class="total-column-box">
+                            <span class="total-col-label" data-i18n="totalUdhaarLabel">Udhaar / கடன்</span>
+                            <div class="total-col-values">
+                                <div><span class="value-muted">Drafted:</span> &#8377;<span id="total-drafted-udhaar">0.00</span></div>
+                                <div><span class="value-muted">Written:</span> <span id="total-written-udhaar">-</span></div>
+                            </div>
+                        </div>
+                        <div class="total-column-box">
+                            <span class="total-col-label" data-i18n="totalJamaLabel">Jama / வரவு</span>
+                            <div class="total-col-values">
+                                <div><span class="value-muted">Drafted:</span> &#8377;<span id="total-drafted-jama">0.00</span></div>
+                                <div><span class="value-muted">Written:</span> <span id="total-written-jama">-</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="photo-total-mismatch-warning" class="photo-total-warning" style="display: none;"></div>
+                    <div id="photo-ack-wrapper" class="photo-ack-row" style="display: none;">
+                        <label class="photo-ack-label">
+                            <input type="checkbox" id="photo-ack-checkbox">
+                            <span data-i18n="photoAckText">I acknowledge column total differences and skipped rows.</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Cancelled and Unreadable Rows Section -->
+                <div id="photo-exceptions-card" class="card photo-exceptions-card" style="display: none;">
+                    <h4 class="photo-exceptions-title">&#9888; <span data-i18n="skippedRowsTitle">Skipped Rows (Not Drafted)</span></h4>
+                    <div id="photo-cancelled-list" class="photo-exception-list"></div>
+                    <div id="photo-unreadable-list" class="photo-exception-list"></div>
+                </div>
+
                 <!-- Draft Cards Container -->
                 <div id="draft-cards-container" class="draft-cards-list">
                     <!-- Draft cards inserted here -->
@@ -276,6 +319,18 @@
                     >
                         <span class="mic-icon" aria-hidden="true">&#127908;</span>
                         <span class="mic-tooltip" data-i18n="comingSoon">Coming soon</span>
+                    </button>
+
+                    <!-- Notebook Photo Upload Button & Hidden Input -->
+                    <input type="file" id="photo-file-input" accept="image/jpeg,image/png,image/webp" style="display: none;" aria-hidden="true">
+                    <button
+                        id="photo-upload-btn"
+                        class="mic-btn photo-btn"
+                        type="button"
+                        aria-label="Upload notebook photo"
+                        title="Scan notebook page photo"
+                    >
+                        <span class="photo-icon" aria-hidden="true">&#128247;</span>
                     </button>
 
                     <!-- Text Input Box -->

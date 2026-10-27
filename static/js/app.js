@@ -87,7 +87,18 @@
             skipBtn: "Skip",
             evidenceTitle: "Evidence:",
             failedChecksTitle: "Failed checks:",
-            runReviewSuccess: "Collections review completed."
+            runReviewSuccess: "Collections review completed.",
+            photoPrivacyNotice: "Photo is processed in memory and not stored. Use test pages only in demos.",
+            columnTotalCheck: "Per-Column Total Check",
+            totalUdhaarLabel: "Udhaar / கடன் (Credit)",
+            totalJamaLabel: "Jama / வரவு (Payment)",
+            skippedRowsTitle: "Skipped Rows (Not Drafted)",
+            photoAckText: "I acknowledge column total differences and skipped rows.",
+            photoTotalMatched: "Totals match",
+            photoTotalMismatch: "Totals mismatch",
+            uploadingPhoto: "Processing photo (downscaling & extracting rows)...",
+            useLatinName: "Use English",
+            useTamilName: "Use Tamil"
         },
         ta: {
             appTitle: "கடை கணக்கு",
@@ -167,7 +178,18 @@
             skipBtn: "தவிர்",
             evidenceTitle: "ஆதாரம்:",
             failedChecksTitle: "தோல்வியடைந்த சோதனைகள்:",
-            runReviewSuccess: "வசூல் மதிப்பாய்வு முடிந்தது."
+            runReviewSuccess: "வசூல் மதிப்பாய்வு முடிந்தது.",
+            photoPrivacyNotice: "புகைப்படம் நினைவகத்தில் மட்டுமே செயலாக்கப்படுகிறது, சேமிக்கப்படுவதில்லை. டெமோக்களில் சோதனை பக்கங்களை மட்டுமே பயன்படுத்தவும்.",
+            columnTotalCheck: "நிரல் வாரியான மொத்த சரிபார்ப்பு",
+            totalUdhaarLabel: "கடன் (Udhaar)",
+            totalJamaLabel: "வரவு (Jama)",
+            skippedRowsTitle: "தவிர்க்கப்பட்ட வரிகள் (பதிவு செய்யப்படவில்லை)",
+            photoAckText: "மொத்த வேறுபாடுகள் மற்றும் தவிர்க்கப்பட்ட வரிகளை நான் ஏற்றுக்கொள்கிறேன்.",
+            photoTotalMatched: "மொத்தம் சரிபார்க்கப்பட்டது",
+            photoTotalMismatch: "மொத்தத்தில் முரண்பாடு உள்ளது",
+            uploadingPhoto: "புகைப்படம் செயலாக்கப்படுகிறது...",
+            useLatinName: "ஆங்கில பெயர்",
+            useTamilName: "தமிழ் பெயர்"
         }
     };
 
@@ -258,8 +280,26 @@
         askVerifiedBadge: document.getElementById("ask-verified-badge"),
         askSourceBadge: document.getElementById("ask-source-badge"),
         askAnswerText: document.getElementById("ask-answer-text"),
-        toastContainer: document.getElementById("toast-container")
+        toastContainer: document.getElementById("toast-container"),
+        // Photo Upload & Review Elements
+        photoFileInput: document.getElementById("photo-file-input"),
+        photoUploadBtn: document.getElementById("photo-upload-btn"),
+        photoPrivacyBanner: document.getElementById("photo-privacy-banner"),
+        photoTotalCheckCard: document.getElementById("photo-total-check-card"),
+        photoTotalBadge: document.getElementById("photo-total-badge"),
+        totalDraftedUdhaar: document.getElementById("total-drafted-udhaar"),
+        totalWrittenUdhaar: document.getElementById("total-written-udhaar"),
+        totalDraftedJama: document.getElementById("total-drafted-jama"),
+        totalWrittenJama: document.getElementById("total-written-jama"),
+        photoTotalMismatchWarning: document.getElementById("photo-total-mismatch-warning"),
+        photoAckWrapper: document.getElementById("photo-ack-wrapper"),
+        photoAckCheckbox: document.getElementById("photo-ack-checkbox"),
+        photoExceptionsCard: document.getElementById("photo-exceptions-card"),
+        photoCancelledList: document.getElementById("photo-cancelled-list"),
+        photoUnreadableList: document.getElementById("photo-unreadable-list")
     };
+
+    let currentPhotoTotalCheck = null;
 
 
     // --- Helper: Safe HTML Escaping ---
@@ -597,6 +637,7 @@
                 elements.clarificationBanner.style.display = "none";
             }
 
+            clearPhotoReviewUI();
             renderDraftCards(currentDrafts);
             showView("confirm");
         } catch (err) {
@@ -608,14 +649,168 @@
         }
     }
 
-    function renderDraftCards(drafts) {
-        elements.draftCardsContainer.innerHTML = "";
-        elements.confirmAllBtn.style.display = drafts.length > 1 ? "inline-flex" : "none";
+    // --- Photo Digitizer (Client-side downscale & EXIF strip) ---
+    function downscaleImageToBlob(file, maxEdge = 1600) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error("Failed to read image file."));
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onerror = () => reject(new Error("Failed to decode image."));
+                img.onload = () => {
+                    let w = img.width;
+                    let h = img.height;
+                    if (Math.max(w, h) > maxEdge) {
+                        const scale = maxEdge / Math.max(w, h);
+                        w = Math.round(w * scale);
+                        h = Math.round(h * scale);
+                    }
+                    const canvas = document.createElement("canvas");
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, w, h);
+                    canvas.toBlob(
+                        (blob) => {
+                            if (blob) resolve(blob);
+                            else reject(new Error("Canvas blob conversion failed."));
+                        },
+                        "image/jpeg",
+                        0.85
+                    );
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
 
-        // Disable "Confirm all" while any draft has a non-exact match
-        const hasNonExact = drafts.some(d => !d.is_exact_match);
-        elements.confirmAllBtn.disabled = hasNonExact;
-        if (hasNonExact) {
+    async function handlePhotoFileSelected(file) {
+        if (!file || isParsing) return;
+
+        isParsing = true;
+        elements.inputStatusBar.style.display = "flex";
+        elements.inputStatusText.textContent = t("uploadingPhoto");
+        elements.sendBtn.disabled = true;
+
+        try {
+            const scaledBlob = await downscaleImageToBlob(file, 1600);
+            const formData = new FormData();
+            formData.append("image", scaledBlob, "notebook_page.jpg");
+
+            const resp = await fetch("/api/parse-photo/", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await resp.json();
+            if (!resp.ok || data.status === "error") {
+                throw new Error(data.error || "Photo parsing failed");
+            }
+
+            currentDrafts = data.drafts || [];
+            currentPhotoTotalCheck = data.total_check || null;
+
+            renderPhotoReviewUI(data);
+            renderDraftCards(currentDrafts);
+            showView("confirm");
+        } catch (err) {
+            showToast(err.message, "error");
+        } finally {
+            isParsing = false;
+            elements.inputStatusBar.style.display = "none";
+            elements.sendBtn.disabled = false;
+            if (elements.photoFileInput) elements.photoFileInput.value = "";
+        }
+    }
+
+    function renderPhotoReviewUI(data) {
+        if (elements.photoPrivacyBanner) elements.photoPrivacyBanner.style.display = "flex";
+
+        if (data.total_check && elements.photoTotalCheckCard) {
+            elements.photoTotalCheckCard.style.display = "block";
+            const tc = data.total_check;
+            if (elements.totalDraftedUdhaar) elements.totalDraftedUdhaar.textContent = Number(tc.sum_udhaar || 0).toFixed(2);
+            if (elements.totalWrittenUdhaar) elements.totalWrittenUdhaar.textContent = tc.total_udhaar !== null && tc.total_udhaar !== undefined ? `₹${Number(tc.total_udhaar).toFixed(2)}` : "-";
+
+            if (elements.totalDraftedJama) elements.totalDraftedJama.textContent = Number(tc.sum_jama || 0).toFixed(2);
+            if (elements.totalWrittenJama) elements.totalWrittenJama.textContent = tc.total_jama !== null && tc.total_jama !== undefined ? `₹${Number(tc.total_jama).toFixed(2)}` : "-";
+
+            if (tc.has_mismatch) {
+                if (elements.photoTotalBadge) {
+                    elements.photoTotalBadge.className = "badge badge-warning";
+                    elements.photoTotalBadge.textContent = t("photoTotalMismatch");
+                }
+                if (elements.photoTotalMismatchWarning) {
+                    elements.photoTotalMismatchWarning.textContent = tc.warning || "Column totals mismatch.";
+                    elements.photoTotalMismatchWarning.style.display = "block";
+                }
+                if (elements.photoAckWrapper) elements.photoAckWrapper.style.display = "block";
+                if (elements.photoAckCheckbox) elements.photoAckCheckbox.checked = false;
+            } else {
+                if (elements.photoTotalBadge) {
+                    elements.photoTotalBadge.className = "badge badge-success";
+                    elements.photoTotalBadge.textContent = t("photoTotalMatched");
+                }
+                if (elements.photoTotalMismatchWarning) elements.photoTotalMismatchWarning.style.display = "none";
+                if (elements.photoAckWrapper) elements.photoAckWrapper.style.display = "none";
+                if (elements.photoAckCheckbox) elements.photoAckCheckbox.checked = true;
+            }
+        } else if (elements.photoTotalCheckCard) {
+            elements.photoTotalCheckCard.style.display = "none";
+        }
+
+        const cancelled = data.cancelled_rows || [];
+        const unreadable = data.unreadable_rows || [];
+        if ((cancelled.length > 0 || unreadable.length > 0) && elements.photoExceptionsCard) {
+            elements.photoExceptionsCard.style.display = "block";
+            if (elements.photoCancelledList) elements.photoCancelledList.innerHTML = "";
+            if (elements.photoUnreadableList) elements.photoUnreadableList.innerHTML = "";
+
+            cancelled.forEach(c => {
+                const chip = document.createElement("span");
+                chip.className = "exception-chip";
+                chip.textContent = `❌ ${c.row_hint || "Cancelled row"}`;
+                if (elements.photoCancelledList) elements.photoCancelledList.appendChild(chip);
+            });
+
+            unreadable.forEach(u => {
+                const chip = document.createElement("span");
+                chip.className = "exception-chip";
+                chip.textContent = `⚠ ${u.row_hint || "Unreadable"}: ${u.reason || "illegible"}`;
+                if (elements.photoUnreadableList) elements.photoUnreadableList.appendChild(chip);
+            });
+        } else if (elements.photoExceptionsCard) {
+            elements.photoExceptionsCard.style.display = "none";
+        }
+    }
+
+    function clearPhotoReviewUI() {
+        if (elements.photoPrivacyBanner) elements.photoPrivacyBanner.style.display = "none";
+        if (elements.photoTotalCheckCard) elements.photoTotalCheckCard.style.display = "none";
+        if (elements.photoExceptionsCard) elements.photoExceptionsCard.style.display = "none";
+        if (elements.photoCancelledList) elements.photoCancelledList.innerHTML = "";
+        if (elements.photoUnreadableList) elements.photoUnreadableList.innerHTML = "";
+        currentPhotoTotalCheck = null;
+    }
+
+    function updateConfirmAllState() {
+        if (!elements.confirmAllBtn) return;
+        const hasNonExact = currentDrafts.some(d => !d.is_exact_match);
+        const hasUnackedMismatch = Boolean(
+            currentPhotoTotalCheck &&
+            currentPhotoTotalCheck.has_mismatch &&
+            elements.photoAckCheckbox &&
+            !elements.photoAckCheckbox.checked
+        );
+
+        const shouldDisable = hasNonExact || hasUnackedMismatch;
+        elements.confirmAllBtn.disabled = shouldDisable;
+
+        if (hasUnackedMismatch) {
+            elements.confirmAllBtn.title = "Acknowledge column totals mismatch and skipped rows to enable Confirm All";
+            elements.confirmAllBtn.style.opacity = "0.5";
+            elements.confirmAllBtn.style.cursor = "not-allowed";
+        } else if (hasNonExact) {
             elements.confirmAllBtn.title = "Confirm all is disabled: resolve suggested or non-exact matches first";
             elements.confirmAllBtn.style.opacity = "0.5";
             elements.confirmAllBtn.style.cursor = "not-allowed";
@@ -624,6 +819,14 @@
             elements.confirmAllBtn.style.opacity = "1";
             elements.confirmAllBtn.style.cursor = "pointer";
         }
+    }
+
+    function renderDraftCards(drafts) {
+        elements.draftCardsContainer.innerHTML = "";
+        elements.confirmAllBtn.style.display = drafts.length > 1 ? "inline-flex" : "none";
+
+        // Disable "Confirm all" while any draft has a non-exact match or unacknowledged photo mismatch
+        updateConfirmAllState();
 
         if (drafts.length === 0) {
             if (!elements.clarificationMessage.textContent) {
@@ -731,9 +934,34 @@
             const custInput = document.createElement("input");
             custInput.type = "text";
             custInput.className = "draft-input";
-            custInput.value = draft.customer_name;
             custGroup.appendChild(custLabel);
             custGroup.appendChild(custInput);
+
+            // Tamil Name & Latin suggestion toggle
+            if (draft.name_latin && draft.name_latin !== draft.customer_name) {
+                const originalName = draft.customer_name;
+                const latinSuggestion = draft.name_latin;
+                const toggleChip = document.createElement("button");
+                toggleChip.type = "button";
+                toggleChip.className = "latin-toggle-chip";
+                let isUsingLatin = false;
+                toggleChip.textContent = `🔤 ${t("useLatinName")}: ${latinSuggestion}`;
+                toggleChip.addEventListener("click", () => {
+                    isUsingLatin = !isUsingLatin;
+                    if (isUsingLatin) {
+                        custInput.value = latinSuggestion;
+                        draft.customer_name = latinSuggestion;
+                        toggleChip.textContent = `🔤 ${t("useTamilName")}: ${originalName}`;
+                    } else {
+                        custInput.value = originalName;
+                        draft.customer_name = originalName;
+                        toggleChip.textContent = `🔤 ${t("useLatinName")}: ${latinSuggestion}`;
+                    }
+                    updateConfirmAllState();
+                });
+                custGroup.appendChild(toggleChip);
+            }
+
             card.appendChild(custGroup);
 
             // Kind Toggle (Udhaar / Varavu)
@@ -1378,8 +1606,29 @@
             loadCustomers();
         });
 
+        // Photo Upload Handlers
+        if (elements.photoUploadBtn && elements.photoFileInput) {
+            elements.photoUploadBtn.addEventListener("click", () => {
+                elements.photoFileInput.click();
+            });
+
+            elements.photoFileInput.addEventListener("change", (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (file) {
+                    handlePhotoFileSelected(file);
+                }
+            });
+        }
+
+        if (elements.photoAckCheckbox) {
+            elements.photoAckCheckbox.addEventListener("change", () => {
+                updateConfirmAllState();
+            });
+        }
+
         elements.discardAllBtn.addEventListener("click", () => {
             currentDrafts = [];
+            clearPhotoReviewUI();
             showView("home");
         });
 

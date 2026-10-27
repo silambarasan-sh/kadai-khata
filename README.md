@@ -246,5 +246,68 @@ python manage.py eval_agent --runs 3 --live
 
 ---
 
+## Notebook Photo -> Batch Drafts (Vision Workflow)
+
+For shopkeepers who still keep a physical pen-and-paper khata notebook, Kadai Khata provides a photo digitization workflow that converts a ledger page into batch transaction drafts.
+
+### 1. In-Memory Zero-Storage & Privacy Architecture
+- **Zero Disk or DB Storage**: The image is received via `POST /api/parse-photo/` directly into memory as a byte stream, converted to an in-memory base64 data URL for Meta AI vision inference, and immediately discarded. Neither the original image nor base64 chunks are ever written to disk or database.
+- **Client-Side Canvas Downscaling & EXIF Stripping**: The mobile web app downscales the image in the browser via an HTML canvas (max long edge 1600px, JPEG quality 0.85). This process strips all EXIF metadata (including phone GPS coordinates, camera model, and device timestamps) prior to network transmission, keeping uploads light (< 250 KB).
+- **MIME & Size Enforcement**: Server rejects payloads exceeding 4MB or non-image MIME types (accepts only `image/jpeg`, `image/png`, `image/webp`) with HTTP 400.
+
+### 2. Table Layout & Column Semantics
+The vision system prompt is configured for standard Tamil Nadu shopkeeper khata tables:
+- **Columns**: `Date | Name | Note | Udhaar | Jama` or Tamil headers `"தேதி | பெயர் | விவரம் | கடன் | வரவு"`.
+- **Direction Rules**:
+  - Amount in **Udhaar / கடன்** column -> `credit_given` (customer took goods on credit).
+  - Amount in **Jama / வரவு** column -> `payment_received` (customer settled / paid money).
+  - Hyphen (`"-"`), dash, or empty cell denotes zero / no entry.
+- **Limitation (v1)**: **Dates are NOT parsed in v1**. All confirmed transactions are recorded with the ledger timestamp at confirmation time.
+
+### 3. Tamil Script Preservation & Latin Transliteration (`name_latin`)
+- Names written in Tamil script (e.g. *"முருகன்"*, *"கார்த்திக்"*) are preserved verbatim in `customer_name`.
+- The model suggests an English/Latin phonetic transliteration in `name_latin` (e.g. *"Murugan"*, *"Karthik"*).
+- The review UI displays both names with an interactive toggle chip, allowing the shopkeeper to choose whether to save the Tamil or Latin spelling to their customer database.
+
+### 4. Cancellation & Illegibility Protection
+- **Struck-Out / Scribbled Rows**: Rows with lines drawn through them, tildes, or cancellation scribbles are captured via the `flag_cancelled(row_hint)` tool and are **never** converted into transaction drafts.
+- **Smudged / Illegible Rows**: Unclear or torn rows trigger `flag_unreadable(row_hint, reason)`. The model is instructed to **never guess** names or figures.
+- Both types of skipped rows are displayed in a transparent "Skipped rows from photo" accordion on the review screen.
+
+### 5. Per-Column Total Check & Safety Gate
+Physical ledger pages frequently conclude with column totals written at the bottom. The model extracts these via `report_page_totals(total_udhaar, total_jama)`:
+- **Per-Column Comparison**:
+  - `sum(drafted credit_given)` vs written `total_udhaar`
+  - `sum(drafted payment_received)` vs written `total_jama`
+- **Safety Gate**:
+  - If a mismatch occurs, a warning banner appears detailing both computed and written totals.
+  - The banner explicitly cites any cancelled or unreadable rows that might account for the discrepancy.
+  - **"Confirm all" remains disabled** until the shopkeeper checks the acknowledgement box: *"I understand the column totals don't match (e.g. struck-out or unreadable rows) and want to proceed."*
+  - Confirming single verified cards remains accessible.
+
+### 6. Caching & Token Logging
+Meta API vision calls log standard token counts plus `usage.cached_tokens`, providing transparency into prompt caching benefits across multiple ledger photo requests.
+
+### 7. Evaluation Benchmark (`eval_vision`)
+Evaluates model extraction against ground-truth annotations in `tests/vision_samples/`:
+```powershell
+python manage.py eval_vision
+```
+- **Ground-Truth Format** (`<image_name>.json`):
+  ```json
+  {
+    "rows": [{"customer": "Murugan", "kind": "credit_given", "amount": 150.0}],
+    "cancelled": ["Ravi 50 milk struck out"],
+    "unreadable": ["torn bottom right corner"],
+    "total_udhaar": 150.0,
+    "total_jama": null,
+    "aliases": {"Murugan": ["முருகன்"]}
+  }
+  ```
+- Evaluates: image & row count ($n$), row recall, exact-field accuracy, false rows, cancelled/unreadable detection, total-check accuracy, latency, and prompt/cached token usage without prompt retuning.
+
+---
+
 ## License
 MIT License - Copyright (c) 2026 Silambarasan N
+

@@ -82,6 +82,7 @@ class DraftEntry(models.Model):
 
     source_text = models.TextField()
     customer_name = models.CharField(max_length=150)
+    name_latin = models.CharField(max_length=150, blank=True, default="")
     matched_customer = models.ForeignKey(
         Customer,
         null=True,
