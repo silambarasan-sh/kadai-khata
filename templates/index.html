@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kadai Khata - Tanglish Udhaar Ledger</title>
+    <meta name="description" content="Kadai Khata - Mobile Tanglish Udhaar & Credit Ledger with Meta AI verification for neighborhood shop owners.">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Top Sticky Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-title">
+                    <span class="logo-icon" aria-hidden="true">&#128211;</span>
+                    <h1 id="app-title" class="brand-title" data-i18n="appTitle">Kadai Khata</h1>
+                </div>
+                <div class="header-actions">
+                    <button id="lang-toggle-btn" class="lang-toggle-btn" type="button" aria-label="Toggle Language">
+                        <span id="lang-current-label">தமிழ்</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="main-content" class="main-content">
+            <!-- Screen 1: Home View -->
+            <section id="home-view" class="view-section active" aria-labelledby="total-outstanding-label">
+                <!-- Big Total Outstanding Card -->
+                <div class="card summary-card">
+                    <div class="summary-meta">
+                        <span id="total-outstanding-label" class="summary-label" data-i18n="totalOutstanding">Total Outstanding</span>
+                        <span id="customer-count-badge" class="badge badge-neutral">0 Customers</span>
+                    </div>
+                    <div class="summary-balance-row">
+                        <span class="currency-symbol">&#8377;</span>
+                        <span id="total-outstanding-amount" class="summary-amount">0.00</span>
+                    </div>
+                    <p class="summary-subtitle" data-i18n="summaryHint">Net credit owed across all customers</p>
+                </div>
+
+                <!-- Search and Filter Bar -->
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon" aria-hidden="true">&#128269;</span>
+                        <input
+                            type="search"
+                            id="customer-search-input"
+                            class="search-input"
+                            data-i18n-placeholder="searchPlaceholder"
+                            placeholder="Search by customer name or phone..."
+                            aria-label="Search customers"
+                            autocomplete="off"
+                        >
+                        <button id="search-clear-btn" class="search-clear-btn" type="button" aria-label="Clear search" style="display: none;">&times;</button>
+                    </div>
+                </div>
+
+                <!-- Customers List Section -->
+                <div class="section-header">
+                    <h2 class="section-title" data-i18n="customerLedger">Customer Accounts</h2>
+                    <span id="filtered-count" class="section-count"></span>
+                </div>
+
+                <div id="customer-list-container" class="customer-cards-list" role="feed" aria-busy="false">
+                    <!-- Dynamic customer cards rendered here -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-customers-state" class="empty-state" style="display: none;">
+                    <div class="empty-icon">&#128203;</div>
+                    <h3 data-i18n="noCustomersFound">No customer records found</h3>
+                    <p data-i18n="noCustomersHint">Type a transaction in the input bar below to create one.</p>
+                </div>
+            </section>
+
+            <!-- Screen 3: Pending Confirm Cards View / Overlay -->
+            <section id="confirm-view" class="view-section" style="display: none;" aria-labelledby="confirm-section-title">
+                <div class="confirm-header-bar">
+                    <div>
+                        <h2 id="confirm-section-title" class="section-title" data-i18n="confirmDraftsTitle">Review Draft Entries</h2>
+                        <p class="confirm-subtitle" data-i18n="nothingSavedHint">Nothing is saved to the ledger until you click Confirm.</p>
+                    </div>
+                    <div class="confirm-actions-top">
+                        <button id="confirm-all-btn" class="btn btn-primary btn-sm" type="button" style="display: none;">
+                            <span data-i18n="confirmAll">Confirm All</span>
+                        </button>
+                        <button id="discard-all-btn" class="btn btn-secondary btn-sm" type="button">
+                            <span data-i18n="closeDrafts">Close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Clarification Banner -->
+                <div id="clarification-banner" class="banner banner-warning" style="display: none;">
+                    <div class="banner-icon">&#9888;</div>
+                    <div class="banner-text">
+                        <strong data-i18n="clarificationTitle">Clarification Needed:</strong>
+                        <span id="clarification-message"></span>
+                    </div>
+                </div>
+
+                <!-- Draft Cards Container -->
+                <div id="draft-cards-container" class="draft-cards-list">
+                    <!-- Draft cards inserted here -->
+                </div>
+            </section>
+
+            <!-- Screen 4: Customer Detail & Timeline View -->
+            <section id="customer-detail-view" class="view-section" style="display: none;" aria-labelledby="detail-customer-name">
+                <div class="detail-header-card">
+                    <button id="back-to-home-btn" class="back-nav-btn" type="button" aria-label="Back to customer list">
+                        <span aria-hidden="true">&larr;</span> <span data-i18n="back">Back</span>
+                    </button>
+                    <div class="detail-customer-meta">
+                        <div class="detail-title-row">
+                            <h2 id="detail-customer-name" class="detail-name">Customer Name</h2>
+                            <span id="detail-aging-badge" class="badge">0-30</span>
+                        </div>
+                        <div id="detail-customer-phone" class="detail-phone"></div>
+                    </div>
+                    <div class="detail-balance-box">
+                        <div class="detail-balance-label" data-i18n="outstandingBalance">Current Balance</div>
+                        <div class="detail-balance-value">&#8377;<span id="detail-customer-balance">0.00</span></div>
+                    </div>
+                    <div class="detail-actions">
+                        <button id="open-reminder-btn" class="btn btn-primary btn-block" type="button">
+                            <span aria-hidden="true">&#128227;</span> <span data-i18n="sendReminder">Draft Reminder</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="section-header">
+                    <h3 class="section-title" data-i18n="transactionTimeline">Transaction Timeline & Audit</h3>
+                </div>
+
+                <div id="timeline-container" class="timeline-list">
+                    <!-- Timeline entries rendered here -->
+                </div>
+
+                <div id="empty-timeline-state" class="empty-state" style="display: none;">
+                    <div class="empty-icon">&#128339;</div>
+                    <h3 data-i18n="noEntriesYet">No transactions yet</h3>
+                    <p data-i18n="noEntriesHint">Add udhaar or varavu below to start tracking.</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Screen 2: Fixed Bottom Input Bar -->
+        <footer class="bottom-input-bar">
+            <!-- Active parsing status indicator -->
+            <div id="input-status-bar" class="input-status-bar" style="display: none;">
+                <span class="status-spinner" aria-hidden="true"></span>
+                <span id="input-status-text" data-i18n="parsingSentence">Understanding Tanglish transaction...</span>
+            </div>
+
+            <form id="transcription-form" class="input-form" onsubmit="return false;">
+                <div class="input-controls-row">
+                    <!-- Disabled Mic Button with "coming soon" label -->
+                    <button
+                        id="mic-btn"
+                        class="mic-btn"
+                        type="button"
+                        disabled
+                        aria-label="Voice input (Coming soon)"
+                        title="Voice input coming soon"
+                    >
+                        <span class="mic-icon" aria-hidden="true">&#127908;</span>
+                        <span class="mic-tooltip" data-i18n="comingSoon">Coming soon</span>
+                    </button>
+
+                    <!-- Text Input Box -->
+                    <div class="text-input-wrapper">
+                        <input
+                            type="text"
+                            id="sentence-input"
+                            class="sentence-input"
+                            data-i18n-placeholder="sentencePlaceholder"
+                            placeholder="Type: 'Ravi 500 udhaar kuduthen'..."
+                            aria-label="Enter transaction in Tanglish or English"
+                            maxlength="500"
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <!-- Send Button -->
+                    <button
+                        id="send-btn"
+                        class="send-btn"
+                        type="submit"
+                        aria-label="Process transaction"
+                    >
+                        <span class="send-icon" aria-hidden="true">&#10148;</span>
+                        <span class="send-label" data-i18n="send">Send</span>
+                    </button>
+                </div>
+            </form>
+        </footer>
+
+        <!-- Screen 4/Reminder: Verifiable Payment Reminder Modal -->
+        <div id="reminder-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="reminder-modal-title">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="reminder-modal-title" class="modal-title" data-i18n="reminderTitle">Payment Reminder</h3>
+                        <p class="modal-subtitle" id="reminder-customer-subtitle">For Customer</p>
+                    </div>
+                    <button id="close-reminder-modal-btn" class="modal-close-btn" type="button" aria-label="Close modal">&times;</button>
+                </div>
+
+                <div class="modal-body">
+                    <!-- Config Options -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="reminder-lang-select" class="form-label" data-i18n="reminderLanguage">Language</label>
+                            <select id="reminder-lang-select" class="form-select">
+                                <option value="ta">தமிழ் (Tamil Script)</option>
+                                <option value="tanglish">Tanglish (Tamil in English)</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="reminder-tone-select" class="form-label" data-i18n="reminderTone">Tone</label>
+                            <select id="reminder-tone-select" class="form-select">
+                                <option value="soft" data-i18n="toneSoft">Soft / Friendly</option>
+                                <option value="firm" data-i18n="toneFirm">Firm / Clear</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button id="generate-reminder-btn" class="btn btn-primary btn-block" type="button">
+                        <span id="generate-btn-text" data-i18n="generateDraft">Generate Reminder</span>
+                    </button>
+
+                    <!-- Reminder Output Section -->
+                    <div id="reminder-output-box" class="reminder-output-box" style="display: none;">
+                        <div class="reminder-meta-badges">
+                            <span id="reminder-verified-badge" class="badge badge-success">
+                                &#10003; <span data-i18n="verifiedAmount">Verified amount</span>
+                            </span>
+                            <span id="reminder-source-badge" class="badge badge-mock">MOCK</span>
+                        </div>
+                        <div class="reminder-text-card">
+                            <p id="reminder-message-text" class="reminder-message"></p>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="reminder-actions-row">
+                            <a
+                                id="reminder-whatsapp-link"
+                                class="btn btn-whatsapp"
+                                href="#"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style="display: none;"
+                            >
+                                <span class="wa-icon">&#128172;</span> <span data-i18n="openWhatsApp">Open in WhatsApp</span>
+                            </a>
+                            <button id="reminder-copy-btn" class="btn btn-secondary" type="button">
+                                <span class="copy-icon">&#128203;</span> <span id="copy-btn-label" data-i18n="copyMessage">Copy Message</span>
+                            </button>
+                        </div>
+                        <p class="reminder-notice" data-i18n="reminderPrivacyNotice">The app never sends anything itself. You review and send manually.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Toast Notification Container -->
+        <div id="toast-container" class="toast-container" aria-live="polite"></div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,920 @@
+/**
+ * Kadai Khata - Mobile-First Single Page Application
+ * Pure Vanilla JavaScript - No build step, no external dependencies.
+ * XSS-safe: all user text is escaped or inserted via textContent.
+ */
+
+(function () {
+    "use strict";
+
+    // --- i18n Dictionary (Genuine Tamil Script & English) ---
+    const I18N = {
+        en: {
+            appTitle: "Kadai Khata",
+            langBtnLabel: "தமிழ்",
+            totalOutstanding: "Total Outstanding",
+            customersCount: "{n} Customers",
+            summaryHint: "Net credit owed across all customers",
+            searchPlaceholder: "Search by customer name or phone...",
+            customerLedger: "Customer Accounts",
+            noCustomersFound: "No customer records found",
+            noCustomersHint: "Type a transaction in the input bar below to create one.",
+            confirmDraftsTitle: "Review Draft Entries",
+            nothingSavedHint: "Nothing is saved to the ledger until you click Confirm.",
+            confirmAll: "Confirm All",
+            closeDrafts: "Close",
+            clarificationTitle: "Clarification Needed:",
+            back: "Back",
+            outstandingBalance: "Current Balance",
+            sendReminder: "Draft Reminder",
+            transactionTimeline: "Transaction Timeline & Audit",
+            noEntriesYet: "No transactions yet",
+            noEntriesHint: "Add udhaar or varavu below to start tracking.",
+            comingSoon: "Coming soon",
+            sentencePlaceholder: "Type: 'Ravi 500 udhaar kuduthen'...",
+            send: "Send",
+            reminderTitle: "Payment Reminder",
+            reminderLanguage: "Language",
+            reminderTone: "Tone",
+            toneSoft: "Soft / Friendly",
+            toneFirm: "Firm / Clear",
+            generateDraft: "Generate Reminder",
+            verifiedAmount: "Verified amount",
+            openWhatsApp: "Open in WhatsApp",
+            copyMessage: "Copy Message",
+            copied: "Copied!",
+            reminderPrivacyNotice: "The app never sends anything itself. You review and send manually.",
+            matchesCustomer: "Matches existing customer",
+            newCustomer: "New customer",
+            udhaar: "Udhaar (Credit)",
+            varavu: "Varavu (Payment)",
+            confirm: "Confirm",
+            reject: "Reject",
+            reverseEntry: "Reverse Entry",
+            reversedBadge: "Reversed",
+            reversalEntryBadge: "Reversal Record",
+            reversalPrompt: "Reason for reversal (optional):",
+            daysAgo: "{n}d ago",
+            today: "Today",
+            parsingSentence: "Understanding Tanglish transaction...",
+            errorNetwork: "Network request failed. Please check your connection.",
+            confirmSuccess: "Transaction confirmed and recorded.",
+            rejectSuccess: "Draft discarded.",
+            reversalSuccess: "Entry successfully reversed.",
+            chooseCandidate: "Multiple matching customers found. Choose one:"
+        },
+        ta: {
+            appTitle: "கடை கணக்கு",
+            langBtnLabel: "English",
+            totalOutstanding: "மொத்த பாக்கி",
+            customersCount: "{n} வாடிக்கையாளர்கள்",
+            summaryHint: "அனைத்து வாடிக்கையாளர் மொத்த கடன்",
+            searchPlaceholder: "வாடிக்கையாளர் பெயர் அல்லது போன் எண் தேடுக...",
+            customerLedger: "வாடிக்கையாளர் கணக்குகள்",
+            noCustomersFound: "வாடிக்கையாளர் பதிவுகள் எதுவும் இல்லை",
+            noCustomersHint: "கீழே உள்ள உள்ளீட்டுப் பட்டியில் பதிவை உள்ளிடவும்.",
+            confirmDraftsTitle: "வரைவு உள்ளீடுகளை சரிபார்க்கவும்",
+            nothingSavedHint: "உறுதி செய்யும் வரை கணக்கில் எதுவும் சேமிக்கப்படாது.",
+            confirmAll: "அனைத்தும் உறுதி செய்",
+            closeDrafts: "மூடு",
+            clarificationTitle: "விளக்கம் தேவை:",
+            back: "பின்செல்",
+            outstandingBalance: "தற்போதைய பாக்கி",
+            sendReminder: "நினைவூட்டல் உருவாக்கு",
+            transactionTimeline: "பரிவர்த்தனை வரலாறு & தணிக்கை",
+            noEntriesYet: "பரிவர்த்தனைகள் எதுவும் இல்லை",
+            noEntriesHint: "கீழே உள்ளீட்டை சேர்த்து கணக்கைத் தொடங்குங்கள்.",
+            comingSoon: "விரைவில்",
+            sentencePlaceholder: "எழுதுக: 'ரவி 500 உதார் குடுத்தேன்'...",
+            send: "பதிவு செய்",
+            reminderTitle: "கடன் நினைவூட்டல்",
+            reminderLanguage: "மொழி",
+            reminderTone: "தொனி",
+            toneSoft: "பணிவான / நட்பு",
+            toneFirm: "தெளிவான / கண்டிப்பான",
+            generateDraft: "நினைவூட்டல் உருவாக்கு",
+            verifiedAmount: "சரிபார்க்கப்பட்ட தொகை",
+            openWhatsApp: "வாட்ஸ்அப்பில் திற",
+            copyMessage: "செய்தியை நகலெடு",
+            copied: "நகலெடுக்கப்பட்டது!",
+            reminderPrivacyNotice: "செயலி எதையும் தானாக அனுப்பாது. சரிபார்த்து நீங்களே அனுப்ப வேண்டும்.",
+            matchesCustomer: "பழைய வாடிக்கையாளர்",
+            newCustomer: "புதிய வாடிக்கையாளர்",
+            udhaar: "உதார் (கடன்)",
+            varavu: "வரவு (பணம்)",
+            confirm: "உறுதி செய்",
+            reject: "நிராகரி",
+            reverseEntry: "ரத்து செய்",
+            reversedBadge: "ரத்து செய்யப்பட்டது",
+            reversalEntryBadge: "ரத்து பதிவு",
+            reversalPrompt: "ரத்து செய்வதற்கான காரணம் (விருப்பத்தேர்வு):",
+            daysAgo: "{n} நாட்களுக்கு முன்",
+            today: "இன்று",
+            parsingSentence: "உள்ளீடு புரிந்து கொள்ளப்படுகிறது...",
+            errorNetwork: "இணைய இணைப்பு தோல்வியடைந்தது.",
+            confirmSuccess: "பதிவு உறுதி செய்யப்பட்டு சேமிக்கப்பட்டது.",
+            rejectSuccess: "வரைவு நிராகரிக்கப்பட்டது.",
+            reversalSuccess: "பதிவு வெற்றிகரமாக ரத்து செய்யப்பட்டது.",
+            chooseCandidate: "பொருத்தமான வாடிக்கையாளரை தேர்ந்தெடுக்கவும்:"
+        }
+    };
+
+    // --- State ---
+    let currentLang = localStorage.getItem("kadai_khata_lang") || "en";
+    let allCustomers = [];
+    let currentDrafts = [];
+    let activeCustomer = null;
+    let isParsing = false;
+
+    // --- DOM Elements ---
+    const elements = {
+        langToggleBtn: document.getElementById("lang-toggle-btn"),
+        langCurrentLabel: document.getElementById("lang-current-label"),
+        homeView: document.getElementById("home-view"),
+        confirmView: document.getElementById("confirm-view"),
+        customerDetailView: document.getElementById("customer-detail-view"),
+        totalOutstandingAmount: document.getElementById("total-outstanding-amount"),
+        customerCountBadge: document.getElementById("customer-count-badge"),
+        customerSearchInput: document.getElementById("customer-search-input"),
+        searchClearBtn: document.getElementById("search-clear-btn"),
+        customerListContainer: document.getElementById("customer-list-container"),
+        emptyCustomersState: document.getElementById("empty-customers-state"),
+        filteredCount: document.getElementById("filtered-count"),
+        // Confirm Cards View
+        draftCardsContainer: document.getElementById("draft-cards-container"),
+        clarificationBanner: document.getElementById("clarification-banner"),
+        clarificationMessage: document.getElementById("clarification-message"),
+        confirmAllBtn: document.getElementById("confirm-all-btn"),
+        discardAllBtn: document.getElementById("discard-all-btn"),
+        // Customer Detail View
+        backToHomeBtn: document.getElementById("back-to-home-btn"),
+        detailCustomerName: document.getElementById("detail-customer-name"),
+        detailCustomerPhone: document.getElementById("detail-customer-phone"),
+        detailCustomerBalance: document.getElementById("detail-customer-balance"),
+        detailAgingBadge: document.getElementById("detail-aging-badge"),
+        timelineContainer: document.getElementById("timeline-container"),
+        emptyTimelineState: document.getElementById("empty-timeline-state"),
+        openReminderBtn: document.getElementById("open-reminder-btn"),
+        // Input Bar
+        transcriptionForm: document.getElementById("transcription-form"),
+        sentenceInput: document.getElementById("sentence-input"),
+        sendBtn: document.getElementById("send-btn"),
+        inputStatusBar: document.getElementById("input-status-bar"),
+        inputStatusText: document.getElementById("input-status-text"),
+        // Reminder Modal
+        reminderModal: document.getElementById("reminder-modal"),
+        closeReminderModalBtn: document.getElementById("close-reminder-modal-btn"),
+        reminderCustomerSubtitle: document.getElementById("reminder-customer-subtitle"),
+        reminderLangSelect: document.getElementById("reminder-lang-select"),
+        reminderToneSelect: document.getElementById("reminder-tone-select"),
+        generateReminderBtn: document.getElementById("generate-reminder-btn"),
+        generateBtnText: document.getElementById("generate-btn-text"),
+        reminderOutputBox: document.getElementById("reminder-output-box"),
+        reminderMessageText: document.getElementById("reminder-message-text"),
+        reminderVerifiedBadge: document.getElementById("reminder-verified-badge"),
+        reminderSourceBadge: document.getElementById("reminder-source-badge"),
+        reminderWhatsappLink: document.getElementById("reminder-whatsapp-link"),
+        reminderCopyBtn: document.getElementById("reminder-copy-btn"),
+        copyBtnLabel: document.getElementById("copy-btn-label"),
+        toastContainer: document.getElementById("toast-container")
+    };
+
+    // --- Helper: Safe HTML Escaping ---
+    function escapeHtml(str) {
+        if (!str) return "";
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function t(key, vars = {}) {
+        let text = (I18N[currentLang] && I18N[currentLang][key]) || (I18N.en && I18N.en[key]) || key;
+        for (const [k, v] of Object.entries(vars)) {
+            text = text.replace(new RegExp(`\\{${k}\\}`, "g"), v);
+        }
+        return text;
+    }
+
+    function applyTranslations() {
+        document.querySelectorAll("[data-i18n]").forEach(el => {
+            const key = el.getAttribute("data-i18n");
+            el.textContent = t(key);
+        });
+        document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+            const key = el.getAttribute("data-i18n-placeholder");
+            el.setAttribute("placeholder", t(key));
+        });
+        if (elements.langCurrentLabel) {
+            elements.langCurrentLabel.textContent = t("langBtnLabel");
+        }
+        if (allCustomers.length > 0) {
+            elements.customerCountBadge.textContent = t("customersCount", { n: allCustomers.length });
+        }
+    }
+
+    function showToast(message, type = "info") {
+        const toast = document.createElement("div");
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        elements.toastContainer.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            toast.style.transform = "translateY(-8px)";
+            toast.style.transition = "all 0.2s ease";
+            setTimeout(() => toast.remove(), 200);
+        }, 3200);
+    }
+
+    // --- Navigation ---
+    function showView(viewName) {
+        elements.homeView.style.display = viewName === "home" ? "flex" : "none";
+        elements.confirmView.style.display = viewName === "confirm" ? "flex" : "none";
+        elements.customerDetailView.style.display = viewName === "detail" ? "flex" : "none";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    // --- API Calls ---
+    async function loadCustomers() {
+        try {
+            const resp = await fetch("/api/customers/");
+            if (!resp.ok) throw new Error("Failed to load customers");
+            const data = await resp.json();
+            allCustomers = data.customers || [];
+            elements.totalOutstandingAmount.textContent = data.total_outstanding || "0.00";
+            elements.customerCountBadge.textContent = t("customersCount", { n: allCustomers.length });
+            renderCustomerList();
+        } catch (err) {
+            showToast(t("errorNetwork"), "error");
+        }
+    }
+
+    function renderCustomerList() {
+        const filter = (elements.customerSearchInput.value || "").trim().toLowerCase();
+        elements.customerListContainer.innerHTML = "";
+
+        const filtered = allCustomers.filter(c => {
+            if (!filter) return true;
+            return c.name.toLowerCase().includes(filter) || (c.phone && c.phone.includes(filter));
+        });
+
+        if (filtered.length === 0) {
+            elements.emptyCustomersState.style.display = "flex";
+            elements.filteredCount.textContent = "";
+        } else {
+            elements.emptyCustomersState.style.display = "none";
+            elements.filteredCount.textContent = filter ? `${filtered.length} / ${allCustomers.length}` : "";
+        }
+
+        filtered.forEach(cust => {
+            const card = document.createElement("div");
+            card.className = "customer-card";
+            card.setAttribute("role", "button");
+            card.setAttribute("tabindex", "0");
+            card.setAttribute("aria-label", `View account for ${cust.name}`);
+
+            const infoDiv = document.createElement("div");
+            infoDiv.className = "customer-info";
+
+            const nameEl = document.createElement("div");
+            nameEl.className = "customer-name";
+            nameEl.textContent = cust.name;
+
+            const metaRow = document.createElement("div");
+            metaRow.className = "customer-meta-row";
+
+            if (cust.phone) {
+                const phoneSpan = document.createElement("span");
+                phoneSpan.textContent = cust.phone;
+                metaRow.appendChild(phoneSpan);
+            }
+
+            const agingBadge = document.createElement("span");
+            const bucket = cust.aging_bucket || "0-30";
+            agingBadge.className = `badge badge-aging-${bucket.replace("+", "-plus")}`;
+            agingBadge.textContent = bucket;
+            metaRow.appendChild(agingBadge);
+
+            const daysSpan = document.createElement("span");
+            if (cust.days_since_last_entry === 0 && cust.last_entry_at) {
+                daysSpan.textContent = t("today");
+            } else if (cust.days_since_last_entry > 0) {
+                daysSpan.textContent = t("daysAgo", { n: cust.days_since_last_entry });
+            }
+            metaRow.appendChild(daysSpan);
+
+            infoDiv.appendChild(nameEl);
+            infoDiv.appendChild(metaRow);
+
+            const balanceBlock = document.createElement("div");
+            balanceBlock.className = "customer-balance-block";
+
+            const balAmount = document.createElement("div");
+            balAmount.className = "customer-balance-amount";
+            const balVal = parseFloat(cust.balance || "0");
+            if (balVal <= 0) {
+                balAmount.classList.add("customer-balance-settled");
+            }
+            balAmount.textContent = `₹${cust.balance}`;
+
+            balanceBlock.appendChild(balAmount);
+
+            card.appendChild(infoDiv);
+            card.appendChild(balanceBlock);
+
+            card.addEventListener("click", () => openCustomerDetail(cust.id));
+            card.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openCustomerDetail(cust.id);
+                }
+            });
+
+            elements.customerListContainer.appendChild(card);
+        });
+    }
+
+    // --- Customer Detail & Timeline ---
+    async function openCustomerDetail(customerId) {
+        try {
+            const resp = await fetch(`/api/customers/${customerId}/timeline/`);
+            if (!resp.ok) throw new Error("Failed to load customer timeline");
+            const data = await resp.json();
+            activeCustomer = data.customer;
+            renderCustomerDetail(data);
+            showView("detail");
+        } catch (err) {
+            showToast(t("errorNetwork"), "error");
+        }
+    }
+
+    function renderCustomerDetail(data) {
+        const cust = data.customer;
+        elements.detailCustomerName.textContent = cust.name;
+        elements.detailCustomerPhone.textContent = cust.phone ? `Phone: ${cust.phone}` : "";
+        elements.detailCustomerBalance.textContent = cust.balance;
+
+        const bucket = cust.aging_bucket || "0-30";
+        elements.detailAgingBadge.className = `badge badge-aging-${bucket.replace("+", "-plus")}`;
+        elements.detailAgingBadge.textContent = bucket;
+
+        elements.timelineContainer.innerHTML = "";
+        const entries = data.entries || [];
+
+        if (entries.length === 0) {
+            elements.emptyTimelineState.style.display = "flex";
+        } else {
+            elements.emptyTimelineState.style.display = "none";
+        }
+
+        entries.forEach(entry => {
+            const card = document.createElement("div");
+            card.className = "timeline-entry-card";
+            if (entry.has_been_reversed) {
+                card.classList.add("entry-reversed");
+            }
+
+            // Top row: kind & amount
+            const topRow = document.createElement("div");
+            topRow.className = "timeline-entry-top";
+
+            const kindPill = document.createElement("div");
+            kindPill.className = "timeline-kind-pill";
+
+            const isCredit = entry.kind === "credit_given";
+            kindPill.style.color = isCredit ? "var(--credit-red)" : "var(--payment-green)";
+            kindPill.textContent = isCredit ? `▲ ${t("udhaar")}` : `▼ ${t("varavu")}`;
+
+            const amountEl = document.createElement("div");
+            amountEl.className = "timeline-amount";
+            amountEl.style.color = isCredit ? "var(--credit-red)" : "var(--payment-green)";
+            amountEl.textContent = `${isCredit ? "+" : "-"}₹${entry.amount}`;
+
+            topRow.appendChild(kindPill);
+            topRow.appendChild(amountEl);
+
+            // Meta row: date and running balance
+            const metaRow = document.createElement("div");
+            metaRow.className = "timeline-meta-row";
+
+            const dateSpan = document.createElement("span");
+            const dt = new Date(entry.created_at);
+            dateSpan.textContent = dt.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+            const balSpan = document.createElement("span");
+            balSpan.className = "timeline-running-bal";
+            balSpan.textContent = `Bal: ₹${entry.running_balance}`;
+
+            metaRow.appendChild(dateSpan);
+            metaRow.appendChild(balSpan);
+
+            card.appendChild(topRow);
+            card.appendChild(metaRow);
+
+            // Note or original source
+            if (entry.note) {
+                const noteEl = document.createElement("div");
+                noteEl.className = "timeline-note";
+                noteEl.textContent = entry.note;
+                card.appendChild(noteEl);
+            }
+
+            // Audit Badges
+            if (entry.is_reversal) {
+                const revBadge = document.createElement("span");
+                revBadge.className = "badge badge-mock";
+                revBadge.textContent = t("reversalEntryBadge");
+                card.appendChild(revBadge);
+            }
+            if (entry.has_been_reversed) {
+                const revBadge = document.createElement("span");
+                revBadge.className = "badge badge-warning";
+                revBadge.textContent = `${t("reversedBadge")} (#${entry.reversal_id})`;
+                card.appendChild(revBadge);
+            }
+
+            // Reverse Button (Audit Trail: no deletes)
+            if (!entry.has_been_reversed && !entry.is_reversal) {
+                const actionsRow = document.createElement("div");
+                actionsRow.className = "timeline-actions";
+
+                const revBtn = document.createElement("button");
+                revBtn.type = "button";
+                revBtn.className = "btn btn-danger btn-sm";
+                revBtn.textContent = `↩ ${t("reverseEntry")}`;
+                revBtn.addEventListener("click", () => handleReverseEntry(entry.id));
+
+                actionsRow.appendChild(revBtn);
+                card.appendChild(actionsRow);
+            }
+
+            elements.timelineContainer.appendChild(card);
+        });
+    }
+
+    async function handleReverseEntry(entryId) {
+        const reason = window.prompt(t("reversalPrompt"), "");
+        if (reason === null) return; // user cancelled
+
+        try {
+            const resp = await fetch("/api/reverse/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ entry_id: entryId, reason: reason })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || "Reversal failed");
+
+            showToast(t("reversalSuccess"), "success");
+            // Refresh detail view & background customers
+            if (activeCustomer) {
+                await openCustomerDetail(activeCustomer.id);
+            }
+            loadCustomers();
+        } catch (err) {
+            showToast(err.message, "error");
+        }
+    }
+
+    // --- Sentence Parsing & Draft Cards ---
+    async function handleSentenceSubmit() {
+        const text = elements.sentenceInput.value.trim();
+        if (!text || isParsing) return;
+
+        isParsing = true;
+        elements.inputStatusBar.style.display = "flex";
+        elements.sendBtn.disabled = true;
+
+        try {
+            const resp = await fetch("/api/parse/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: text })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || "Parsing failed");
+
+            elements.sentenceInput.value = "";
+            currentDrafts = data.drafts || [];
+
+            // Clarification question from model
+            if (data.clarification) {
+                elements.clarificationMessage.textContent = data.clarification;
+                elements.clarificationBanner.style.display = "flex";
+            } else {
+                elements.clarificationBanner.style.display = "none";
+            }
+
+            renderDraftCards(currentDrafts);
+            showView("confirm");
+        } catch (err) {
+            showToast(err.message, "error");
+        } finally {
+            isParsing = false;
+            elements.inputStatusBar.style.display = "none";
+            elements.sendBtn.disabled = false;
+        }
+    }
+
+    function renderDraftCards(drafts) {
+        elements.draftCardsContainer.innerHTML = "";
+        elements.confirmAllBtn.style.display = drafts.length > 1 ? "inline-flex" : "none";
+
+        if (drafts.length === 0) {
+            if (!elements.clarificationMessage.textContent) {
+                showView("home");
+            }
+            return;
+        }
+
+        drafts.forEach(draft => {
+            const card = document.createElement("div");
+            card.className = "draft-card";
+            card.id = `draft-card-${draft.id}`;
+
+            // Badges row
+            const badgesRow = document.createElement("div");
+            badgesRow.className = "draft-badges-row";
+
+            // Source Badge with honest colors
+            const sourceBadge = document.createElement("span");
+            const src = (draft.source_label || "mock").toLowerCase();
+            sourceBadge.className = `badge badge-${src}`;
+            sourceBadge.textContent = src.toUpperCase();
+            badgesRow.appendChild(sourceBadge);
+
+            // Match badge
+            const matchBadge = document.createElement("span");
+            if (draft.matched_customer_id) {
+                matchBadge.className = "badge badge-match";
+                matchBadge.textContent = t("matchesCustomer");
+            } else {
+                matchBadge.className = "badge badge-new";
+                matchBadge.textContent = t("newCustomer");
+            }
+            badgesRow.appendChild(matchBadge);
+
+            // Warnings
+            if (draft.warnings && draft.warnings.length > 0) {
+                draft.warnings.forEach(warn => {
+                    const wBadge = document.createElement("span");
+                    wBadge.className = "badge badge-warning";
+                    wBadge.textContent = `⚠ ${warn}`;
+                    badgesRow.appendChild(wBadge);
+                });
+            }
+
+            card.appendChild(badgesRow);
+
+            // Candidate Chooser if ambiguous
+            let selectedCandidateName = draft.customer_name;
+            if (draft.candidates && draft.candidates.length > 1) {
+                const pickerBox = document.createElement("div");
+                pickerBox.className = "candidate-picker-box";
+
+                const pTitle = document.createElement("div");
+                pTitle.className = "candidate-picker-title";
+                pTitle.textContent = t("chooseCandidate");
+                pickerBox.appendChild(pTitle);
+
+                const optsRow = document.createElement("div");
+                optsRow.className = "candidate-options-row";
+
+                draft.candidates.forEach(cand => {
+                    const chip = document.createElement("button");
+                    chip.type = "button";
+                    chip.className = "candidate-chip-btn";
+                    if (cand === selectedCandidateName) chip.classList.add("selected");
+                    chip.textContent = cand;
+
+                    chip.addEventListener("click", () => {
+                        selectedCandidateName = cand;
+                        custInput.value = cand;
+                        pickerBox.querySelectorAll(".candidate-chip-btn").forEach(c => c.classList.remove("selected"));
+                        chip.classList.add("selected");
+                    });
+
+                    optsRow.appendChild(chip);
+                });
+
+                pickerBox.appendChild(optsRow);
+                card.appendChild(pickerBox);
+            }
+
+            // Customer Name Input
+            const custGroup = document.createElement("div");
+            custGroup.className = "draft-form-group";
+            const custLabel = document.createElement("label");
+            custLabel.className = "draft-label";
+            custLabel.textContent = "Customer Name";
+            const custInput = document.createElement("input");
+            custInput.type = "text";
+            custInput.className = "draft-input";
+            custInput.value = draft.customer_name;
+            custGroup.appendChild(custLabel);
+            custGroup.appendChild(custInput);
+            card.appendChild(custGroup);
+
+            // Kind Toggle (Udhaar / Varavu)
+            const kindGroup = document.createElement("div");
+            kindGroup.className = "draft-form-group";
+            const kindLabel = document.createElement("label");
+            kindLabel.className = "draft-label";
+            kindLabel.textContent = "Transaction Kind";
+
+            const toggleGroup = document.createElement("div");
+            toggleGroup.className = "kind-toggle-group";
+
+            let currentKind = draft.kind;
+
+            const creditBtn = document.createElement("button");
+            creditBtn.type = "button";
+            creditBtn.className = "kind-toggle-btn kind-credit" + (currentKind === "credit_given" ? " active" : "");
+            creditBtn.textContent = `▲ ${t("udhaar")}`;
+
+            const paymentBtn = document.createElement("button");
+            paymentBtn.type = "button";
+            paymentBtn.className = "kind-toggle-btn kind-payment" + (currentKind === "payment_received" ? " active" : "");
+            paymentBtn.textContent = `▼ ${t("varavu")}`;
+
+            creditBtn.addEventListener("click", () => {
+                currentKind = "credit_given";
+                creditBtn.classList.add("active");
+                paymentBtn.classList.remove("active");
+            });
+
+            paymentBtn.addEventListener("click", () => {
+                currentKind = "payment_received";
+                paymentBtn.classList.add("active");
+                creditBtn.classList.remove("active");
+            });
+
+            toggleGroup.appendChild(creditBtn);
+            toggleGroup.appendChild(paymentBtn);
+            kindGroup.appendChild(kindLabel);
+            kindGroup.appendChild(toggleGroup);
+            card.appendChild(kindGroup);
+
+            // Amount Input
+            const amtGroup = document.createElement("div");
+            amtGroup.className = "draft-form-group";
+            const amtLabel = document.createElement("label");
+            amtLabel.className = "draft-label";
+            amtLabel.textContent = "Amount (₹)";
+            const amtInput = document.createElement("input");
+            amtInput.type = "number";
+            amtInput.step = "0.01";
+            amtInput.className = "draft-input";
+            amtInput.value = draft.amount;
+            amtGroup.appendChild(amtLabel);
+            amtGroup.appendChild(amtInput);
+            card.appendChild(amtGroup);
+
+            // Note Input
+            const noteGroup = document.createElement("div");
+            noteGroup.className = "draft-form-group";
+            const noteLabel = document.createElement("label");
+            noteLabel.className = "draft-label";
+            noteLabel.textContent = "Note / Items";
+            const noteInput = document.createElement("input");
+            noteInput.type = "text";
+            noteInput.className = "draft-input";
+            noteInput.value = draft.note || "";
+            noteGroup.appendChild(noteLabel);
+            noteGroup.appendChild(noteInput);
+            card.appendChild(noteGroup);
+
+            // Action Buttons: Confirm and Reject
+            const actionsRow = document.createElement("div");
+            actionsRow.className = "draft-actions-row";
+
+            const rejectBtn = document.createElement("button");
+            rejectBtn.type = "button";
+            rejectBtn.className = "btn btn-secondary";
+            rejectBtn.textContent = t("reject");
+            rejectBtn.addEventListener("click", () => handleRejectDraft(draft.id));
+
+            const confirmBtn = document.createElement("button");
+            confirmBtn.type = "button";
+            confirmBtn.className = "btn btn-primary";
+            confirmBtn.textContent = `✔ ${t("confirm")}`;
+            confirmBtn.addEventListener("click", () => {
+                const edits = {
+                    customer_name: custInput.value.trim(),
+                    kind: currentKind,
+                    amount: amtInput.value.trim(),
+                    note: noteInput.value.trim()
+                };
+                handleConfirmDraft(draft.id, edits);
+            });
+
+            actionsRow.appendChild(rejectBtn);
+            actionsRow.appendChild(confirmBtn);
+            card.appendChild(actionsRow);
+
+            elements.draftCardsContainer.appendChild(card);
+        });
+    }
+
+    async function handleConfirmDraft(draftId, edits) {
+        try {
+            const resp = await fetch("/api/confirm/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ draft_id: draftId, edits: edits })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || "Confirmation failed");
+
+            showToast(t("confirmSuccess"), "success");
+            currentDrafts = currentDrafts.filter(d => d.id !== draftId);
+            renderDraftCards(currentDrafts);
+            loadCustomers();
+        } catch (err) {
+            showToast(err.message, "error");
+        }
+    }
+
+    async function handleRejectDraft(draftId) {
+        try {
+            const resp = await fetch("/api/reject/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ draft_id: draftId })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || "Reject failed");
+
+            showToast(t("rejectSuccess"), "info");
+            currentDrafts = currentDrafts.filter(d => d.id !== draftId);
+            renderDraftCards(currentDrafts);
+        } catch (err) {
+            showToast(err.message, "error");
+        }
+    }
+
+    async function handleConfirmAll() {
+        if (currentDrafts.length === 0) return;
+        const draftsToConfirm = [...currentDrafts];
+        for (const draft of draftsToConfirm) {
+            const cardEl = document.getElementById(`draft-card-${draft.id}`);
+            let edits = null;
+            if (cardEl) {
+                const inputs = cardEl.querySelectorAll("input");
+                const activeKindBtn = cardEl.querySelector(".kind-toggle-btn.active");
+                const kind = activeKindBtn && activeKindBtn.classList.contains("kind-payment") ? "payment_received" : "credit_given";
+                edits = {
+                    customer_name: inputs[0] ? inputs[0].value.trim() : draft.customer_name,
+                    kind: kind,
+                    amount: inputs[1] ? inputs[1].value.trim() : draft.amount,
+                    note: inputs[2] ? inputs[2].value.trim() : draft.note
+                };
+            }
+            await handleConfirmDraft(draft.id, edits);
+        }
+    }
+
+    // --- Verifiable Payment Reminder Modal ---
+    function openReminderModal() {
+        if (!activeCustomer) return;
+        elements.reminderCustomerSubtitle.textContent = `${activeCustomer.name} (Balance: ₹${activeCustomer.balance})`;
+        elements.reminderOutputBox.style.display = "none";
+        elements.reminderModal.style.display = "flex";
+    }
+
+    function closeReminderModal() {
+        elements.reminderModal.style.display = "none";
+    }
+
+    async function handleGenerateReminder() {
+        if (!activeCustomer) return;
+
+        const lang = elements.reminderLangSelect.value;
+        const tone = elements.reminderToneSelect.value;
+
+        elements.generateReminderBtn.disabled = true;
+        elements.generateBtnText.textContent = "Generating...";
+
+        try {
+            const resp = await fetch("/api/reminder/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    customer_id: activeCustomer.id,
+                    language: lang,
+                    tone: tone
+                })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || "Failed to generate reminder");
+
+            // Display Output
+            elements.reminderMessageText.textContent = data.message;
+
+            // Verified Badge
+            if (data.verified) {
+                elements.reminderVerifiedBadge.style.display = "inline-flex";
+            } else {
+                elements.reminderVerifiedBadge.style.display = "none";
+            }
+
+            // Source Label
+            const src = (data.source_label || "mock").toLowerCase();
+            elements.reminderSourceBadge.className = `badge badge-${src}`;
+            elements.reminderSourceBadge.textContent = src.toUpperCase();
+
+            // WhatsApp link (wa.me) or copy button
+            if (data.whatsapp_url) {
+                elements.reminderWhatsappLink.href = data.whatsapp_url;
+                elements.reminderWhatsappLink.style.display = "inline-flex";
+            } else {
+                elements.reminderWhatsappLink.style.display = "none";
+            }
+
+            elements.reminderOutputBox.style.display = "flex";
+        } catch (err) {
+            showToast(err.message, "error");
+        } finally {
+            elements.generateReminderBtn.disabled = false;
+            elements.generateBtnText.textContent = t("generateDraft");
+        }
+    }
+
+    function handleCopyMessage() {
+        const text = elements.reminderMessageText.textContent;
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            elements.copyBtnLabel.textContent = t("copied");
+            setTimeout(() => {
+                elements.copyBtnLabel.textContent = t("copyMessage");
+            }, 2000);
+        }).catch(() => {
+            showToast("Failed to copy to clipboard", "error");
+        });
+    }
+
+    // --- Event Listeners ---
+    function setupEventListeners() {
+        // Language Toggle
+        elements.langToggleBtn.addEventListener("click", () => {
+            currentLang = currentLang === "en" ? "ta" : "en";
+            localStorage.setItem("kadai_khata_lang", currentLang);
+            applyTranslations();
+            renderCustomerList();
+        });
+
+        // Search Filter
+        elements.customerSearchInput.addEventListener("input", () => {
+            const hasVal = elements.customerSearchInput.value.trim().length > 0;
+            elements.searchClearBtn.style.display = hasVal ? "flex" : "none";
+            renderCustomerList();
+        });
+
+        elements.searchClearBtn.addEventListener("click", () => {
+            elements.customerSearchInput.value = "";
+            elements.searchClearBtn.style.display = "none";
+            elements.customerSearchInput.focus();
+            renderCustomerList();
+        });
+
+        // Transcription Form Submit
+        elements.transcriptionForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            handleSentenceSubmit();
+        });
+
+        // Navigation
+        elements.backToHomeBtn.addEventListener("click", () => {
+            activeCustomer = null;
+            showView("home");
+            loadCustomers();
+        });
+
+        elements.discardAllBtn.addEventListener("click", () => {
+            currentDrafts = [];
+            showView("home");
+        });
+
+        elements.confirmAllBtn.addEventListener("click", handleConfirmAll);
+
+        // Reminder Modal
+        elements.openReminderBtn.addEventListener("click", openReminderModal);
+        elements.closeReminderModalBtn.addEventListener("click", closeReminderModal);
+        elements.reminderModal.addEventListener("click", (e) => {
+            if (e.target === elements.reminderModal) closeReminderModal();
+        });
+        elements.generateReminderBtn.addEventListener("click", handleGenerateReminder);
+        elements.reminderCopyBtn.addEventListener("click", handleCopyMessage);
+    }
+
+    // --- Init ---
+    function init() {
+        applyTranslations();
+        setupEventListeners();
+        loadCustomers();
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+})();

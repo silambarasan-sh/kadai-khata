@@ -126,21 +126,35 @@ We test parser accuracy against two separate test suites:
 
 ---
 
-## Real vs Mocked & Limitations (Transparency)
-- **Real in Current State**:
-  - Django ORM models, migrations, and SQLite storage.
-  - Core business logic: customer resolution, balance math, validation limits.
-  - Idempotent demo data generator with realistic Tamil Nadu names and amounts.
-  - Meta client implementation with real retry backoff and error translation.
-- **Mock Mode**:
-  - `META_MODE=mock` by default in `.env.example` so tests and local runs never consume API tokens or fail without credentials.
-  - Results transparently flag their source:
-    - `"live"`: Returned directly from the Meta Model API.
-    - `"mock"`: Deterministic local mock response (useful for tests and offline dev).
-    - `"fallback"`: Rule-based fallback if connectivity fails.
-- **Limitations**:
-  - Does not connect to banking UPI APIs for automated bank reconciliation (shop owner records manually).
-  - Single shop owner ledger per database instance (no multi-tenant auth in initial indie track scope).
+---
+
+## Screenshots & UI Walkthrough
+
+<!-- Placeholder for mobile screenshots in light and dark views -->
+| 1. Mobile Home Screen | 2. Confirm Drafts (Human-in-the-Loop) |
+| :---: | :---: |
+| *(Screenshot placeholder: Total outstanding card, aging badges 0-30/31-60/60+, search box)* | *(Screenshot placeholder: Draft cards with source badges LIVE/MOCK/FALLBACK, Udhaar/Varavu toggle)* |
+
+| 3. Customer Timeline & Reversals | 4. Verifiable Payment Reminders |
+| :---: | :---: |
+| *(Screenshot placeholder: Running balance audit trail, reversal badges, reverse entry action)* | *(Screenshot placeholder: Verified amount badge, language/tone selector, WhatsApp wa.me link)* |
+
+---
+
+## Real vs Mocked Transparency
+
+| Subsystem | Live / Real Mode (`META_MODE="live"`) | Mock Mode (`META_MODE="mock"`) |
+|---|---|---|
+| **Web UI** | Served dynamically at `/` with real-time responsive DOM updates, 44px touch targets, Tamil/English i18n, zero CDN dependencies. | Identical UI; works 100% offline without internet. |
+| **Tanglish Parser** | Meta `muse-spark-1.3` Chat Completions with function tool calling (`record_ledger_entry`, `ask_clarification`). | Local deterministic pattern-matching engine with exact test fixture reproduction. |
+| **Payment Reminders** | Meta `muse-spark-1.3` drafts polite reminder passing only factual customer name, balance, and days overdue. Verifier checks exact balance match; regenerates once on error; falls back to deterministic template on failure. | Deterministic localized templates with guaranteed verified balance and pre-filled `wa.me` WhatsApp link. |
+| **Ledger & Reversals** | Real Django SQLite database; audit trail preserves all original entries and creates offsetting reversal entries. | Real database; identical behavior. |
+| **Voice Mic Button** | Placeholder button disabled and labeled *"Coming soon"* (voice audio recording is not built yet; plain text input is fully operational). | Same placeholder state. |
+
+- **Source Labels**: Every draft and reminder card displays honest source badges:
+  - `LIVE` (Emerald): Real Meta AI model completion.
+  - `MOCK` (Sky Blue): Deterministic local test/mock completion.
+  - `FALLBACK` (Amber): Rule-based fallback template triggered on failure or verifier mismatch.
 
 ---
 

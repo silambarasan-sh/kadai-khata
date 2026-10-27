@@ -1,21 +1,33 @@
-"""JSON API Views for Kadai Khata.
+"""JSON API Views and UI template view for Kadai Khata.
 
 Provides endpoints for:
-- POST /api/parse/     : Parse Tanglish speech/text into DraftEntry records
-- POST /api/confirm/   : Confirm and save a draft entry to the official ledger
-- POST /api/reject/    : Reject a draft entry without saving
-- GET  /api/customers/ : Retrieve customers with calculated balances
+- GET  /                                     : Serve Mobile-first UI
+- POST /api/parse/                           : Parse Tanglish speech/text into DraftEntry records
+- POST /api/confirm/                         : Confirm and save a draft entry to the official ledger
+- POST /api/reject/                          : Reject a draft entry without saving
+- GET  /api/customers/                       : Retrieve customers with calculated balances & aging
+- GET  /api/customers/<id>/timeline/         : Retrieve chronological audit trail for a customer
+- POST /api/reverse/                         : Reverse an entry (creates offsetting entry, no deletes)
+- POST /api/reminder/                        : Generate verified polite payment reminder
 """
 
 import json
 from decimal import Decimal
 from django.http import HttpRequest, JsonResponse
+from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import DraftEntry
+from .models import Customer, DraftEntry
 from .parsing import ParsingError, confirm, parse_text, reject
-from .services import LedgerValidationError, list_customers_with_balance
+from .reminders import generate_reminder
+from .services import (
+    LedgerValidationError,
+    get_customer_timeline,
+    list_customers_with_balance,
+    reverse_entry,
+)
 
 
 def _json_error(message: str, status: int = 400) -> JsonResponse:
@@ -42,9 +54,11 @@ def _serialize_draft(draft: DraftEntry) -> dict:
     }
 
 
-def index(request: HttpRequest) -> JsonResponse:
-    """Health check / root info."""
-    return JsonResponse({"status": "ok", "app": "Kadai Khata", "version": "1.0.0"})
+def index(request: HttpRequest):
+    """Serve the single-page application UI."""
+    if request.headers.get("Accept") == "application/json":
+        return JsonResponse({"status": "ok", "app": "Kadai Khata", "version": "1.0.0"})
+    return render(request, "index.html")
 
 
 @csrf_exempt
@@ -108,11 +122,11 @@ def api_confirm(request: HttpRequest) -> JsonResponse:
             "customer_id": entry.customer_id,
             "customer_name": entry.customer.name,
             "kind": entry.kind,
-            "amount": str(entry.amount),
+            "amount": f"{entry.amount:.2f}",
             "note": entry.note,
             "created_at": entry.created_at.isoformat(),
         },
-        "new_balance": str(new_balance),
+        "new_balance": f"{new_balance:.2f}",
     })
 
 
@@ -146,18 +160,139 @@ def api_reject(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def api_customers(request: HttpRequest) -> JsonResponse:
-    """List all customers with their calculated total credit, payments, and balances."""
+    """List all customers with balances, aging indicators, and total outstanding."""
     customers = list_customers_with_balance()
+    now = timezone.now()
     data = []
+    total_outstanding = Decimal("0.00")
+
     for c in customers:
+        balance_dec = Decimal(str(c.balance))
+        if balance_dec > Decimal("0.00"):
+            total_outstanding += balance_dec
+
+        days = 0
+        if c.last_entry_at:
+            days = max(0, (now - c.last_entry_at).days)
+
+        if days <= 30:
+            aging_bucket = "0-30"
+        elif days <= 60:
+            aging_bucket = "31-60"
+        else:
+            aging_bucket = "60+"
+
         data.append({
             "id": c.id,
             "name": c.name,
             "phone": c.phone,
-            "balance": str(c.balance),
-            "total_credit": str(c.total_credit),
-            "total_paid": str(c.total_paid),
+            "balance": f"{balance_dec:.2f}",
+            "total_credit": f"{c.total_credit:.2f}",
+            "total_paid": f"{c.total_paid:.2f}",
             "entry_count": c.entry_count,
             "last_entry_at": c.last_entry_at.isoformat() if c.last_entry_at else None,
+            "days_since_last_entry": days,
+            "aging_bucket": aging_bucket,
         })
-    return JsonResponse({"status": "ok", "customers": data})
+
+    return JsonResponse({
+        "status": "ok",
+        "total_outstanding": f"{total_outstanding:.2f}",
+        "customers": data,
+    })
+
+
+@require_GET
+def api_customer_timeline(request: HttpRequest, customer_id: int) -> JsonResponse:
+    """Fetch chronological entries and running balance for a customer."""
+    try:
+        timeline = get_customer_timeline(customer_id)
+    except LedgerValidationError as exc:
+        return _json_error(str(exc), status=404)
+    except Exception as exc:
+        return _json_error(f"Failed to fetch timeline: {str(exc)}", status=500)
+
+    return JsonResponse({"status": "ok", **timeline})
+
+
+@csrf_exempt
+@require_POST
+def api_reverse(request: HttpRequest) -> JsonResponse:
+    """Reverse a ledger entry (creates an offsetting audit entry, no deletion)."""
+    try:
+        data = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON payload.")
+
+    entry_id = data.get("entry_id")
+    if not entry_id:
+        return _json_error("Field 'entry_id' is required.")
+
+    reason = data.get("reason", "")
+    try:
+        reversal_entry, new_balance = reverse_entry(entry_id=entry_id, reason=reason)
+    except LedgerValidationError as exc:
+        return _json_error(str(exc), status=400)
+    except Exception as exc:
+        return _json_error(f"Failed to reverse entry: {str(exc)}", status=500)
+
+    return JsonResponse({
+        "status": "ok",
+        "message": f"Entry #{entry_id} successfully reversed by #{reversal_entry.id}.",
+        "reversal_entry": {
+            "id": reversal_entry.id,
+            "customer_id": reversal_entry.customer_id,
+            "customer_name": reversal_entry.customer.name,
+            "kind": reversal_entry.kind,
+            "amount": f"{reversal_entry.amount:.2f}",
+            "note": reversal_entry.note,
+            "created_at": reversal_entry.created_at.isoformat(),
+            "reversed_entry_id": reversal_entry.reversed_entry_id,
+        },
+        "reversed_entry_id": entry_id,
+        "new_balance": f"{new_balance:.2f}",
+    })
+
+
+@csrf_exempt
+@require_POST
+def api_reminder(request: HttpRequest) -> JsonResponse:
+    """Generate a polite, verified payment reminder message for a customer."""
+    try:
+        data = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON payload.")
+
+    customer_id = data.get("customer_id")
+    if not customer_id:
+        return _json_error("Field 'customer_id' is required.")
+
+    language = str(data.get("language", "ta")).strip().lower()
+    tone = str(data.get("tone", "soft")).strip().lower()
+
+    if language not in {"ta", "en", "tanglish"}:
+        language = "ta"
+    if tone not in {"soft", "firm"}:
+        tone = "soft"
+
+    try:
+        result = generate_reminder(customer_id=int(customer_id), language=language, tone=tone)
+    except (Customer.DoesNotExist, ValueError):
+        return _json_error(f"Customer #{customer_id} not found.", status=404)
+    except Exception as exc:
+        return _json_error(f"Failed to generate reminder: {str(exc)}", status=500)
+
+    return JsonResponse({
+        "status": "ok",
+        "customer_id": result.customer_id,
+        "customer_name": result.customer_name,
+        "phone": result.phone,
+        "balance": result.balance,
+        "days_overdue": result.days_overdue,
+        "language": result.language,
+        "tone": result.tone,
+        "message": result.message,
+        "verified": result.verified,
+        "source_label": result.source_label,
+        "whatsapp_url": result.whatsapp_url,
+    })

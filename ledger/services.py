@@ -5,7 +5,7 @@ Does not contain any AI logic - pure deterministic service layer.
 """
 
 from decimal import Decimal, InvalidOperation
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 from django.conf import settings
 from django.db import models
 from django.db.models import Count, DecimalField, F, Max, Q, Sum, Value
@@ -153,3 +153,133 @@ def list_customers_with_balance():
         )
         .order_by("-balance", "name")
     )
+
+
+def reverse_entry(entry_id: int, reason: str = "") -> Tuple[LedgerEntry, Decimal]:
+    """Create an offsetting ledger entry linked to the original entry (audit trail).
+
+    Rules:
+    - Never deletes records.
+    - If entry is already a reversal (is_reversal=True), raises LedgerValidationError.
+    - If entry has already been reversed (reversal_records.exists()), raises LedgerValidationError.
+    - Offsetting entry inverts the kind:
+      credit_given -> payment_received
+      payment_received -> credit_given
+    - Offsetting entry sets is_reversal=True and reversed_entry=original.
+    - Note captures citation of original entry ID and optional reason.
+    - Returns (reversal_entry, new_balance).
+    """
+    try:
+        original = LedgerEntry.objects.select_related("customer").get(id=entry_id)
+    except (LedgerEntry.DoesNotExist, ValueError) as exc:
+        raise LedgerValidationError(f"Ledger entry #{entry_id} not found.") from exc
+
+    if original.is_reversal:
+        raise LedgerValidationError(
+            f"Entry #{entry_id} is already a reversal entry and cannot be reversed again."
+        )
+
+    if original.reversal_records.exists():
+        existing_rev = original.reversal_records.first()
+        raise LedgerValidationError(
+            f"Entry #{entry_id} was already reversed by entry #{existing_rev.id}."
+        )
+
+    # Invert kind
+    if original.kind == EntryKind.CREDIT_GIVEN:
+        rev_kind = EntryKind.PAYMENT_RECEIVED
+    else:
+        rev_kind = EntryKind.CREDIT_GIVEN
+
+    clean_reason = (reason or "").strip()
+    rev_note = f"Reversal of #{original.id}"
+    if clean_reason:
+        rev_note = f"{rev_note}: {clean_reason}"
+    elif original.note:
+        rev_note = f"{rev_note} (original: {original.note})"
+
+    reversal_entry = LedgerEntry.objects.create(
+        customer=original.customer,
+        kind=rev_kind,
+        amount=original.amount,
+        note=rev_note,
+        source_text=f"Reversal of #{original.id}",
+        is_reversal=True,
+        reversed_entry=original,
+    )
+
+    new_balance = get_balance(original.customer)
+    return reversal_entry, new_balance
+
+
+def get_customer_timeline(customer_id: int) -> dict:
+    """Fetch chronological entries for a customer with computed running balances."""
+    try:
+        customer = Customer.objects.get(id=customer_id)
+    except (Customer.DoesNotExist, ValueError) as exc:
+        raise LedgerValidationError(f"Customer #{customer_id} not found.") from exc
+
+    current_balance = get_balance(customer)
+    # Fetch entries ordered by created_at ascending, then id ascending to compute running balance
+    entries_asc = (
+        customer.entries.select_related("reversed_entry")
+        .prefetch_related("reversal_records")
+        .order_by("created_at", "id")
+    )
+
+    running = Decimal("0.00")
+    items = []
+    last_entry_at = None
+
+    for e in entries_asc:
+        last_entry_at = e.created_at
+        if e.kind == EntryKind.CREDIT_GIVEN:
+            running += e.amount
+        else:
+            running -= e.amount
+
+        has_been_reversed = e.reversal_records.exists()
+        reversal_id = e.reversal_records.first().id if has_been_reversed else None
+
+        items.append({
+            "id": e.id,
+            "kind": e.kind,
+            "kind_display": e.get_kind_display(),
+            "amount": f"{e.amount:.2f}",
+            "note": e.note,
+            "source_text": e.source_text,
+            "created_at": e.created_at.isoformat(),
+            "is_reversal": e.is_reversal,
+            "reversed_entry_id": e.reversed_entry_id,
+            "has_been_reversed": has_been_reversed,
+            "reversal_id": reversal_id,
+            "running_balance": f"{running:.2f}",
+        })
+
+    # Order newest first for timeline display
+    items.reverse()
+
+    # Calculate days since last entry & aging bucket
+    days_since_last = 0
+    if last_entry_at:
+        days_since_last = max(0, (timezone.now() - last_entry_at).days)
+
+    if days_since_last <= 30:
+        aging_bucket = "0-30"
+    elif days_since_last <= 60:
+        aging_bucket = "31-60"
+    else:
+        aging_bucket = "60+"
+
+    return {
+        "customer": {
+            "id": customer.id,
+            "name": customer.name,
+            "phone": customer.phone,
+            "balance": f"{current_balance:.2f}",
+            "days_since_last_entry": days_since_last,
+            "aging_bucket": aging_bucket,
+        },
+        "entries": items,
+    }
+

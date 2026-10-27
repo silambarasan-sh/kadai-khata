@@ -47,6 +47,14 @@ class LedgerEntry(models.Model):
     note = models.TextField(blank=True, default="")
     source_text = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    reversed_entry = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reversal_records",
+    )
+    is_reversal = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-created_at", "-id"]
