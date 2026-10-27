@@ -272,3 +272,34 @@ def test_approve_returns_draft_and_creates_no_ledger_entry(sample_overdue_data):
     # ABSOLUTE SAFETY CHECK: NO ledger entries created, balance unchanged
     assert LedgerEntry.objects.count() == initial_entries_count
     assert get_balance(c1) == initial_balance
+
+
+@pytest.mark.django_db(transaction=True)
+def test_eval_agent_leaves_main_db_unchanged():
+    from io import StringIO
+    from django.core.management import call_command
+
+    initial_cust_count = Customer.objects.count()
+    initial_entries_count = LedgerEntry.objects.count()
+    initial_runs_count = AgentRun.objects.count()
+
+    mock_runner = MagicMock()
+    mock_run = MagicMock()
+    mock_run.id = 999
+    mock_run.source_label = "mock"
+    mock_run.status = "completed"
+    mock_run.latency_ms = 50.0
+    mock_run.total_tokens = 100
+    mock_run.plan_json = {"actions": [], "summary": {"rejected_count": 0}}
+    mock_runner.run.return_value = mock_run
+
+    with patch("ledger.management.commands.eval_agent.AgentRunner", return_value=mock_runner):
+        out = StringIO()
+        call_command("eval_agent", runs=1, stdout=out)
+
+    # Main DB must remain 100% untouched
+    assert Customer.objects.count() == initial_cust_count
+    assert LedgerEntry.objects.count() == initial_entries_count
+    assert AgentRun.objects.count() == initial_runs_count
+    assert not Customer.objects.filter(name__icontains="[Eval]").exists()
+
