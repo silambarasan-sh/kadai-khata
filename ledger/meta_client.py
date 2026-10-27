@@ -209,6 +209,9 @@ class MetaClient:
             "temperature": temperature,
             **extra_kwargs,
         }
+        default_effort = getattr(settings, "META_REASONING_EFFORT", None)
+        if default_effort and "reasoning_effort" not in request_kwargs:
+            request_kwargs["reasoning_effort"] = default_effort
         if tools:
             request_kwargs["tools"] = tools
         if tool_choice:

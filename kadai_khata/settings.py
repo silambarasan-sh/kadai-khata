@@ -108,3 +108,5 @@ META_BASE_URL = os.getenv("META_BASE_URL", "https://api.meta.ai/v1")
 META_MODEL = os.getenv("META_MODEL", "muse-spark-1.3")
 META_MODE = os.getenv("META_MODE", "mock").strip().lower()
 META_TIMEOUT_SECONDS = float(os.getenv("META_TIMEOUT_SECONDS", "30.0"))
+META_REASONING_EFFORT = os.getenv("META_REASONING_EFFORT", "").strip() or None
+MAX_INPUT_TEXT_LENGTH = int(os.getenv("MAX_INPUT_TEXT_LENGTH", "500"))
