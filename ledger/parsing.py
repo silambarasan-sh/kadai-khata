@@ -64,25 +64,98 @@ TAMIL_NUMBER_MAP = {
 }
 
 
+HONORIFICS = {
+    "akka", "anna", "annan", "thambi", "thangai", "thangachi",
+    "paatti", "thatha", "mama", "maami", "amma", "appa",
+    "aunty", "uncle", "bhai", "sir", "madam",
+}
+
+
+def normalize_customer_name(raw_name: str) -> Tuple[Optional[str], bool]:
+    """Normalize customer names by stripping trailing and leading honorifics.
+
+    Rules:
+    - Strips: akka, anna, annan, thambi, thangai, thangachi, paatti, thatha,
+      mama, maami, amma, appa, aunty, uncle, bhai, sir, madam.
+    - 'Lakshmi akka' -> ('Lakshmi', False)
+    - 'Uncle Suresh' -> ('Suresh', False)
+    - 'Lakshmi-akka' -> ('Lakshmi', False)
+    - If only an honorific remains (e.g. 'Annan' or 'Bhai') -> (None, True)
+    """
+    clean = (raw_name or "").strip()
+    if not clean:
+        return None, False
+
+    # Also handle hyphens connecting honorifics e.g. 'Lakshmi-akka'
+    clean = re.sub(r"-+", " ", clean).strip()
+    tokens = clean.split()
+    if not tokens:
+        return None, False
+
+    # Check if every token is an honorific
+    if all(t.lower() in HONORIFICS for t in tokens):
+        return None, True
+
+    # Strip leading honorifics
+    while tokens and tokens[0].lower() in HONORIFICS:
+        tokens.pop(0)
+
+    # Strip trailing honorifics
+    while tokens and tokens[-1].lower() in HONORIFICS:
+        tokens.pop()
+
+    if not tokens:
+        return None, True
+
+    return " ".join(tokens), False
+
+
 def find_matching_customers(raw_name: str) -> Tuple[Optional[Customer], List[str]]:
-    """Match raw_name against existing customers.
+    """Match raw_name against existing customers with strict exact matching.
+
+    Rules:
+    - ONLY an exact case-insensitive full-name match is auto-matched (exact, []).
+    - Any other match (first-name, partial like 'Kumar' vs 'Ravi Kumar', fuzzy)
+      is a SUGGESTION with exact=None and candidates populated.
 
     Returns:
-        (exact_match_customer, candidates_list)
+        (exact_match_customer, suggestions_list)
     """
-    clean = raw_name.strip()
+    clean = (raw_name or "").strip()
     if not clean:
         return None, []
 
-    # 1. Exact case-insensitive match
+    # 1. Exact case-insensitive full-name match ONLY
     exact = Customer.objects.filter(name__iexact=clean).first()
     if exact:
         return exact, []
 
-    # 2. Fuzzy match candidates (conservative cutoff >= 0.70)
-    all_names = list(Customer.objects.values_list("name", flat=True))
-    candidates = difflib.get_close_matches(clean, all_names, n=5, cutoff=0.70)
-    return None, candidates
+    # 2. Non-exact matches are suggestions:
+    all_customers = list(Customer.objects.all())
+    clean_lower = clean.lower()
+    clean_words = set(re.findall(r"\w+", clean_lower))
+
+    suggestions: List[str] = []
+    seen: set = set()
+
+    # (a) First-name / last-name / partial word overlap / substring
+    for cust in all_customers:
+        c_name_lower = cust.name.lower()
+        c_words = set(re.findall(r"\w+", c_name_lower))
+        if (clean_words & c_words) or (clean_lower in c_name_lower) or (c_name_lower in clean_lower):
+            if cust.name not in seen:
+                suggestions.append(cust.name)
+                seen.add(cust.name)
+
+    # (b) Fuzzy matches for typo tolerance
+    all_names = [c.name for c in all_customers]
+    fuzzy_matches = difflib.get_close_matches(clean, all_names, n=5, cutoff=0.65)
+    for name in fuzzy_matches:
+        if name not in seen:
+            suggestions.append(name)
+            seen.add(name)
+
+    return None, suggestions
 
 
 def find_matching_customer(raw_name: str) -> Tuple[Optional[Customer], Optional[str]]:
@@ -102,12 +175,17 @@ def generate_draft_warnings(
     """Generate intelligent safety warnings for shopkeeper review."""
     warnings: List[str] = []
 
-    # Warning 1: When fuzzy match finds more than one candidate, require owner to choose
-    if candidates and len(candidates) > 1:
-        warnings.append(
-            f"Multiple candidate customers match '{customer_name}': {', '.join(candidates)}. "
-            "Please select the correct customer before confirming."
-        )
+    # Non-exact suggestion warning
+    if not matched_customer and candidates:
+        if len(candidates) == 1:
+            warnings.append(
+                f"Suggested match: '{candidates[0]}'. This is not an exact match; please verify before confirming."
+            )
+        else:
+            warnings.append(
+                f"Multiple candidate customers match '{customer_name}': {', '.join(candidates)}. "
+                "Please select the correct customer before confirming."
+            )
 
     # Warning 2: New customer with a payment_received
     if kind == EntryKind.PAYMENT_RECEIVED:
@@ -188,8 +266,12 @@ def rule_based_fallback_parser(text: str, source_label: str = "fallback") -> Tup
                 found_amount = Decimal(str(val)).quantize(Decimal("0.01"))
                 break
 
+        # Ignore item quantities with unit suffixes like '2 kilo', '10 kg', '5 liter', '2 packet'
+        unit_pattern = r"\b\d+(?:\.\d+)?\s*(?:kilo|kg|liter|litre|packet|box|can|piece|ரூபாய்|rooba|rupees)?\b"
+        c_clean_for_amt = re.sub(r"\b\d+\s*(?:kilo|kg|liter|litre|packet|box|can|piece)\b", "", c_lower)
+
         if found_amount is None:
-            num_match = re.search(r"(?:rs\.?|inr|₹)?\s*(\d+(?:\.\d{1,2})?)\s*(?:rupees|rooba|rs|/-)?", c_lower)
+            num_match = re.search(r"(?:rs\.?|inr|₹)?\s*(\d+(?:\.\d{1,2})?)\s*(?:rupees|rooba|rs|/-)?", c_clean_for_amt)
             if num_match:
                 found_amount = Decimal(num_match.group(1)).quantize(Decimal("0.01"))
 
@@ -208,7 +290,18 @@ def rule_based_fallback_parser(text: str, source_label: str = "fallback") -> Tup
                 "pannaan", "pannitaar", "pannitaanga", "vaangiten", "vaangunen", "groceries",
                 "provisions", "items", "cash", "la", "anupunaan", "anupitaar", "anupinaar",
                 "vanthuchu", "kadan", "potrukkaen", "eludhiko", "bhai", "akka", "paatti",
-                "annachi", "monthly", "balance", "arisi", "pooja", "samaiyal", "chai", "tea"
+                "annachi", "monthly", "balance", "arisi", "pooja", "samaiyal", "chai", "tea",
+                "sugar", "oil", "soap", "box", "colgate", "paste", "surf", "excel", "water",
+                "can", "packet", "bill", "podu", "print", "out", "whatsapp", "milk", "powder",
+                "kilo", "kg", "liter", "litre", "code", "scan", "advance", "sales", "seal",
+                "neram", "coin", "stock", "inventory", "price", "kaila", "oru", "chinna",
+                "periya", "tharen", "enna", "kelu", "kudunga", "innum", "varala", "note",
+                "pannikonga", "poriya", "anuppu", "rendu", "mathiri", "oruthar", "poirukaru",
+                "iniku", "check", "pannu", "loose", "change", "kakan", "koraiva", "irukku",
+                "thambi", "annan", "anna", "vechu", "eduthu", "vekkuran", "naalaikku", "pudhusa",
+                "vantha", "aavin", "nethu", "netru", "sonna", "atha", "athai", "entry", "aagiduchu",
+                "evlo", "vandhuruku", "vandhurukku", "maasa", "kadaisula", "panrom", "nu", "sonnaru",
+                "antha", "நேத்து", "பாரு", "நேத்து", "நேத்து", "நேத்து", "aanju", "ayiram", "nooru", "ambadhu"
             }
             cleaned_words = []
             for token in c_text.split():
@@ -218,27 +311,43 @@ def rule_based_fallback_parser(text: str, source_label: str = "fallback") -> Tup
                     clean_tok = clean_tok[:-3]
                 elif low_tok.endswith("ku") and len(clean_tok) > 3:
                     clean_tok = clean_tok[:-2]
+                elif low_tok.endswith("-la"):
+                    clean_tok = clean_tok[:-3]
 
                 clean_alphanumeric = re.sub(r"[^A-Za-z0-9]", "", clean_tok)
-                if not clean_alphanumeric or clean_alphanumeric.lower() in skip_words or clean_alphanumeric.isdigit():
+                low_alpha = clean_alphanumeric.lower()
+
+                if not clean_alphanumeric or low_alpha in skip_words or low_alpha in {"vara", "varala"} or clean_alphanumeric.isdigit():
                     continue
+
+                # Never treat Tamil number words or udhaar/kadan labels as customer names
+                if any(w in low_alpha for w in ["udhaar", "kadan", "ayiram", "nooru", "ambadhu", "ainooru"]):
+                    continue
+
                 cleaned_words.append(clean_alphanumeric)
 
-            if cleaned_words:
+            if cleaned_words and len(cleaned_words) <= 3:
                 found_name = " ".join(cleaned_words)
 
-        # Validate findings
-        if found_name and found_amount:
-            kind = "credit_given" if is_credit else ("payment_received" if is_payment else "credit_given")
+        # Validate findings: MUST have customer name, amount, AND direction
+        if found_name and found_amount and (is_credit or is_payment):
+            norm_name, is_only_hon = normalize_customer_name(found_name)
+            if is_only_hon:
+                return extracted_entries, f"Customer name-il honorific ('{found_name}') mattum ulladhu. Customer peyar sollunga."
+            if not norm_name:
+                return extracted_entries, f"Yaaruku {found_amount} udhaar/panam? Customer name sollunga."
+            found_name = norm_name
+
+            kind = "credit_given" if is_credit else "payment_received"
             extracted_entries.append({
                 "customer_name": found_name,
                 "kind": kind,
                 "amount": found_amount,
                 "note": c_text,
             })
-        elif not found_name and found_amount:
+        elif not found_name and found_amount and (is_credit or is_payment):
             return extracted_entries, f"Yaaruku {found_amount} udhaar/panam? Customer name sollunga."
-        elif found_name and not found_amount:
+        elif found_name and not found_amount and (is_credit or is_payment):
             return extracted_entries, f"{found_name}-ku evlo rooba transaction? Amount sollunga."
 
     if not extracted_entries:
@@ -338,12 +447,17 @@ def parse_text(text: str) -> ParseResult:
                         if cust_name and kind in [EntryKind.CREDIT_GIVEN.value, EntryKind.PAYMENT_RECEIVED.value] and amount_val is not None:
                             try:
                                 valid_amt = validate_and_normalize_amount(amount_val)
-                                draft_specs.append({
-                                    "customer_name": cust_name,
-                                    "kind": kind,
-                                    "amount": valid_amt,
-                                    "note": note,
-                                })
+                                norm_name, is_only_hon = normalize_customer_name(cust_name)
+                                if is_only_hon:
+                                    if not clarification:
+                                        clarification = f"Customer name-il honorific ('{cust_name}') mattum ulladhu. Customer peyar sollunga."
+                                elif norm_name:
+                                    draft_specs.append({
+                                        "customer_name": norm_name,
+                                        "kind": kind,
+                                        "amount": valid_amt,
+                                        "note": note,
+                                    })
                             except LedgerValidationError:
                                 pass  # Drop invalid amounts outside bounds
 

@@ -1,0 +1,77 @@
+[
+  {
+    "id": 1,
+    "sentence": "Annan kaila oru 2 kilo sugar appram oru packet oil bill podu thambi.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 2,
+    "sentence": "Netru vaangina kadan baki 500 rupees gpay panniyiruken paaru.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 3,
+    "sentence": "Oru 10 kg ponni rice packet vechu eduthu vekkuran, naalaikku tharen.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 4,
+    "sentence": "Kadaikku pudhusa vantha soap box price enna nu kelu.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 5,
+    "sentence": "Rendu chinna colgate paste matrum oru surf excel packet kudunga.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 6,
+    "sentence": "நேத்து udhaar-la sonna 320 rupees innum varala, note pannikonga.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 7,
+    "sentence": "Oru 5 liter water can kondu vandhu kuduthutu poriya?",
+    "expected": "no_entry"
+  },
+  {
+    "id": 8,
+    "sentence": "Total bill evlo vandhurukku, oru print out illa whatsapp-la anuppu.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 9,
+    "sentence": "Aavin milk packet rendu appram oru tea powder packet.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 10,
+    "sentence": "Cash illa, nethu sonna mathiri gpay panren scan code kudu.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 11,
+    "sentence": "Oruthar 500 roova advance kuduthutu poirukaru, athai entry podu.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 12,
+    "sentence": "Kadai seal panra neram aagiduchu, iniku total sales evlo vandhuruku nu check pannu.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 13,
+    "sentence": "Oru 50 roova loose coin irukka? change tharen.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 14,
+    "sentence": "Maasa kadaisula kakan amount settle panrom nu sonnaru antha anna.",
+    "expected": "no_entry"
+  },
+  {
+    "id": 15,
+    "sentence": "Inventory-la oru biscuit packet koraiva irukku, stock check pannu.",
+    "expected": "no_entry"
+  }
+]

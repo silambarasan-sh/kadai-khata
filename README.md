@@ -96,33 +96,38 @@ python manage.py runserver
 
 ### Evaluation & Benchmarks (`eval_parser`)
 
-We test parser accuracy against two separate test suites:
-1. **Golden Dataset (`tests/golden_sentences.json`)**: 20 open-book sentences designed alongside prompt rules (compound transactions, Tamil number words, prompt injections, and conversational chatter).
-2. **Held-Out Dataset (`tests/heldout_sentences.json`)**: 14 unseen, frozen sentences never tuned against prompt rules (including colloquial Tamil phrasing, future promises, 5 lakh limits, and questions). **The held-out set represents our fair, unbiased generalization metric.**
+We test parser accuracy against three distinct benchmark datasets to maintain strict scientific honesty:
+1. **Open-Book Golden Dataset (`tests/golden_sentences.json`)**: 20 sentences designed during development to specify behavior (compound transactions, Tamil number words, prompt injections, and conversational chatter).
+2. **Held-Out Generalization Dataset (`tests/heldout_sentences.json`)**: 14 unseen, frozen sentences never tuned against prompt rules (including colloquial Tamil phrasing, future promises, 5 lakh limits, and queries). **Represents our unbiased generalization benchmark.**
+3. **Realistic-Negative Dataset (`tests/realistic_sentences.json`)**: 15 real-world shopkeeper statements lacking usable transaction intent (inquiries about prices, grocery measurements in kilo/liter, loose change questions, future promises, closing time chatter). **All 15 strictly expect `no_entry` (zero drafts).**
 
-#### Held-Out Test Set Live Results (Model: `muse-spark-1.3`, Live Mode)
-- **Overall Accuracy**: **100.0%** (14/14 passed on first run)
-- **Direction (Kind) Accuracy**: **100.0%** (13/13 transaction directions correct)
-- **Amount Accuracy**: **100.0%** (13/13 transaction amounts extracted accurately)
-- **No-Entry Correctness**: **100.0%** (3/3 non-transactional / out-of-bounds inputs correctly produced zero ledger entries)
-- **Average Latency**: 7224.0 ms | **Average Total Tokens**: 2812.7
+#### Realistic Negative Dataset Results (Model: `muse-spark-1.3`, Live Mode)
+- **Overall Accuracy**: **100.0%** (15/15)
+- **No-Entry Correctness**: **100.0%** (15/15)
+- **False-Positive Count**: **0** (zero drafts created for conversational statements)
+- **Average Latency**: 7188.6 ms | **Average Total Tokens**: 2654.2
 
-#### Reasoning Effort Comparison (All 34 Sentences: 20 Golden + 14 Held-Out)
-| Metric | Default Reasoning Effort | Minimal Reasoning Effort (`META_REASONING_EFFORT="minimal"`) |
+#### Reasoning Effort Multi-Run Comparison (`eval_parser --compare --repeat 3 --show-failures`)
+Evaluated across **204 live API runs** (34 sentences × 3 repeats for each reasoning mode):
+
+| Metric | Default Reasoning Effort (102 runs) | Minimal Effort (`META_REASONING_EFFORT="minimal"`, 102 runs) |
 |---|---|---|
-| **Overall Accuracy** | **100.0%** (34/34) | **97.1%** (33/34) |
-| **Direction Accuracy** | **100.0%** | **96.6%** |
-| **Amount Accuracy** | **100.0%** | **96.6%** |
-| **No-Entry Correctness** | **100.0%** | **100.0%** |
-| **Average Latency** | 5573.2 ms | **2797.9 ms (49.8% faster)** |
-| **Average Total Tokens** | 2575.3 | **2035.0 (21% token savings)** |
+| **Overall Accuracy** | **99.0%** (101/102) | **100.0%** (102/102) |
+| **Direction Accuracy** | **98.9%** (86/87) | **100.0%** (87/87) |
+| **Amount Accuracy** | **98.9%** (86/87) | **100.0%** (87/87) |
+| **No-Entry Correctness** | **100.0%** (27/27) | **100.0%** (27/27) |
+| **False-Positive Count** | **0** | **0** |
+| **Average Latency** | 5615.4 ms | **2542.9 ms (54.7% faster)** |
+| **Average Total Tokens** | 2615.3 | **2035.5 (22.2% token savings)** |
+
+*Failure analysis*: Under Default Effort, only 1 failure occurred across 102 runs (Run 2 on `"Kumar-ku moonu nooru udhaar"` where the model asked for clarification instead of creating an unconfirmed draft). Under Minimal Effort, 102/102 runs passed with zero failures.
 
 ### Safety Warnings Layer
 `DraftEntry` instances automatically generate safety warnings displayed in the UI / API responses:
 1. **New Customer on Payment**: Flags when a repayment is recorded for someone with no prior credit history.
 2. **Overpayment Warning**: Alerts if a payment exceeds the customer's current outstanding balance (would cause negative balance).
 3. **Anomalous Amount**: Flags amounts that exceed 3x average and 2x previous maximum for that customer.
-4. **Ambiguous Fuzzy Match Guard**: If more than one customer matches a name, the draft refuses auto-selection, exposes `candidates`, and blocks confirmation until the shopkeeper explicitly selects the intended customer.
+4. **Strict Match Guard**: Only exact case-insensitive full-name matches are auto-matched. Partial, first-name, or fuzzy matches are flagged as suggestions on the confirm card with a "Change" option, and "Confirm all" is disabled until non-exact matches are reviewed.
 
 ---
 

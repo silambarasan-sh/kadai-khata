@@ -522,6 +522,19 @@
         elements.draftCardsContainer.innerHTML = "";
         elements.confirmAllBtn.style.display = drafts.length > 1 ? "inline-flex" : "none";
 
+        // Disable "Confirm all" while any draft has a non-exact match
+        const hasNonExact = drafts.some(d => !d.is_exact_match);
+        elements.confirmAllBtn.disabled = hasNonExact;
+        if (hasNonExact) {
+            elements.confirmAllBtn.title = "Confirm all is disabled: resolve suggested or non-exact matches first";
+            elements.confirmAllBtn.style.opacity = "0.5";
+            elements.confirmAllBtn.style.cursor = "not-allowed";
+        } else {
+            elements.confirmAllBtn.title = "";
+            elements.confirmAllBtn.style.opacity = "1";
+            elements.confirmAllBtn.style.cursor = "pointer";
+        }
+
         if (drafts.length === 0) {
             if (!elements.clarificationMessage.textContent) {
                 showView("home");
@@ -545,11 +558,14 @@
             sourceBadge.textContent = src.toUpperCase();
             badgesRow.appendChild(sourceBadge);
 
-            // Match badge
+            // Match badge (exact match vs suggestion vs new)
             const matchBadge = document.createElement("span");
-            if (draft.matched_customer_id) {
+            if (draft.is_exact_match) {
                 matchBadge.className = "badge badge-match";
                 matchBadge.textContent = t("matchesCustomer");
+            } else if (draft.candidates && draft.candidates.length > 0) {
+                matchBadge.className = "badge badge-fallback";
+                matchBadge.textContent = `Suggestion: ${draft.candidates[0]}`;
             } else {
                 matchBadge.className = "badge badge-new";
                 matchBadge.textContent = t("newCustomer");
@@ -568,15 +584,15 @@
 
             card.appendChild(badgesRow);
 
-            // Candidate Chooser if ambiguous
+            // Candidate Chooser / Change Option for non-exact matches or ambiguous candidates
             let selectedCandidateName = draft.customer_name;
-            if (draft.candidates && draft.candidates.length > 1) {
+            if (draft.candidates && draft.candidates.length > 0 && !draft.is_exact_match) {
                 const pickerBox = document.createElement("div");
                 pickerBox.className = "candidate-picker-box";
 
                 const pTitle = document.createElement("div");
                 pTitle.className = "candidate-picker-title";
-                pTitle.textContent = t("chooseCandidate");
+                pTitle.textContent = "Suggested Customer (Click to apply match):";
                 pickerBox.appendChild(pTitle);
 
                 const optsRow = document.createElement("div");
@@ -592,8 +608,21 @@
                     chip.addEventListener("click", () => {
                         selectedCandidateName = cand;
                         custInput.value = cand;
+                        draft.customer_name = cand;
+                        draft.is_exact_match = true;
+                        matchBadge.className = "badge badge-match";
+                        matchBadge.textContent = `${t("matchesCustomer")} (${cand})`;
                         pickerBox.querySelectorAll(".candidate-chip-btn").forEach(c => c.classList.remove("selected"));
                         chip.classList.add("selected");
+
+                        // Recheck if all drafts now have exact matches
+                        const stillNonExact = drafts.some(d => !d.is_exact_match);
+                        elements.confirmAllBtn.disabled = stillNonExact;
+                        if (!stillNonExact) {
+                            elements.confirmAllBtn.title = "";
+                            elements.confirmAllBtn.style.opacity = "1";
+                            elements.confirmAllBtn.style.cursor = "pointer";
+                        }
                     });
 
                     optsRow.appendChild(chip);

@@ -40,6 +40,7 @@ def _serialize_draft(draft: DraftEntry) -> dict:
         "id": draft.id,
         "customer_name": draft.customer_name,
         "matched_customer_id": draft.matched_customer_id,
+        "is_exact_match": bool(draft.matched_customer_id),
         "kind": draft.kind,
         "kind_display": draft.get_kind_display(),
         "amount": f"{draft.amount:.2f}",

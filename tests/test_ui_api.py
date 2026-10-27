@@ -100,3 +100,33 @@ def test_api_reminder_endpoint_mock_offline(client):
     assert "1250" in data["message"]
     assert data["whatsapp_url"] is not None
     assert "https://wa.me/919840123456" in data["whatsapp_url"]
+
+
+@pytest.mark.django_db
+def test_draft_serialization_match_strictness_and_ui_elements(client):
+    # Verify index.html contains the confirm-all-btn and draft cards container
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.content.decode("utf-8")
+    assert 'id="confirm-all-btn"' in html
+    assert 'id="draft-cards-container"' in html
+
+    # Create customer "Ravi Kumar"
+    Customer.objects.create(name="Ravi Kumar")
+
+    # Parse partial name "Kumar 400 udhaar" -> should NOT be exact match, must have candidates
+    parse_url = reverse("ledger:api_parse")
+    res = client.post(parse_url, data=json.dumps({"text": "Kumar 400 udhaar"}), content_type="application/json")
+    assert res.status_code == 200
+    draft_data = res.json()["drafts"][0]
+    assert draft_data["is_exact_match"] is False
+    assert draft_data["matched_customer_id"] is None
+    assert "Ravi Kumar" in draft_data["candidates"]
+
+    # Parse full exact name "Ravi Kumar 400 udhaar" -> MUST be exact match
+    res_exact = client.post(parse_url, data=json.dumps({"text": "Ravi Kumar 400 udhaar"}), content_type="application/json")
+    assert res_exact.status_code == 200
+    draft_exact = res_exact.json()["drafts"][0]
+    assert draft_exact["is_exact_match"] is True
+    assert draft_exact["matched_customer_id"] is not None
+
