@@ -61,7 +61,33 @@
             confirmSuccess: "Transaction confirmed and recorded.",
             rejectSuccess: "Draft discarded.",
             reversalSuccess: "Entry successfully reversed.",
-            chooseCandidate: "Multiple matching customers found. Choose one:"
+            chooseCandidate: "Multiple matching customers found. Choose one:",
+            tabLedger: "Ledger",
+            tabCollections: "Collections",
+            askTitle: "Ask Balance",
+            askPlaceholder: "Ravi evlo baaki?...",
+            askBtn: "Ask",
+            collectionsTitle: "Daily Collections Review",
+            collectionsSubtitle: "AI proposes who to remind today. Read-only review.",
+            runCollectionsReview: "Run today's review",
+            runningReview: "Analyzing ledger...",
+            noPlanYet: "No collections review yet",
+            noPlanHint: "Click 'Run today's review' above to analyze outstanding balances and generate verified proposals.",
+            agentTrace: "Agent Execution Trace",
+            chainValid: "Chain valid",
+            chainInvalid: "Chain broken",
+            actionRemindNow: "Remind Now",
+            actionWait: "Wait",
+            actionCallPersonally: "Call Personally",
+            toneSoftBadge: "Soft",
+            toneFirmBadge: "Firm",
+            verifiedBadge: "Verified",
+            unverifiedBadge: "Unverified",
+            draftReminderBtn: "Draft Reminder",
+            skipBtn: "Skip",
+            evidenceTitle: "Evidence:",
+            failedChecksTitle: "Failed checks:",
+            runReviewSuccess: "Collections review completed."
         },
         ta: {
             appTitle: "கடை கணக்கு",
@@ -115,7 +141,33 @@
             confirmSuccess: "பதிவு உறுதி செய்யப்பட்டு சேமிக்கப்பட்டது.",
             rejectSuccess: "வரைவு நிராகரிக்கப்பட்டது.",
             reversalSuccess: "பதிவு வெற்றிகரமாக ரத்து செய்யப்பட்டது.",
-            chooseCandidate: "பொருத்தமான வாடிக்கையாளரை தேர்ந்தெடுக்கவும்:"
+            chooseCandidate: "பொருத்தமான வாடிக்கையாளரை தேர்ந்தெடுக்கவும்:",
+            tabLedger: "கணக்கு",
+            tabCollections: "வசூல்",
+            askTitle: "கணக்கு கேள்",
+            askPlaceholder: "ரவி எவ்ளோ பாக்கி?...",
+            askBtn: "கேள்",
+            collectionsTitle: "தினசரி வசூல் மதிப்பாய்வு",
+            collectionsSubtitle: "யாரை நினைவூட்ட வேண்டும் என்பதை AI பரிந்துரைக்கும். வாசிப்பு மட்டுமே.",
+            runCollectionsReview: "இன்றைய மதிப்பாய்வை தொடங்கு",
+            runningReview: "கணக்குகள் பகுப்பாய்வு செய்யப்படுகின்றன...",
+            noPlanYet: "மதிப்பாய்வு இன்னும் செய்யப்படவில்லை",
+            noPlanHint: "'இன்றைய மதிப்பாய்வை தொடங்கு' பட்டனை அழுத்தி பாக்கி விபரங்களை பகுப்பாய்வு செய்யவும்.",
+            agentTrace: "முகவர் செயல்பாட்டு தணிக்கை",
+            chainValid: "சங்கிலி உறுதி",
+            chainInvalid: "சங்கிலி தவறு",
+            actionRemindNow: "நினைவூட்டு",
+            actionWait: "காத்திரு",
+            actionCallPersonally: "நேரில் அழை",
+            toneSoftBadge: "பணிவான தொனி",
+            toneFirmBadge: "கண்டிப்பான தொனி",
+            verifiedBadge: "சரிபார்க்கப்பட்டது",
+            unverifiedBadge: "சரிபார்க்கப்படவில்லை",
+            draftReminderBtn: "நினைவூட்டல் உருவாக்கு",
+            skipBtn: "தவிர்",
+            evidenceTitle: "ஆதாரம்:",
+            failedChecksTitle: "தோல்வியடைந்த சோதனைகள்:",
+            runReviewSuccess: "வசூல் மதிப்பாய்வு முடிந்தது."
         }
     };
 
@@ -125,12 +177,16 @@
     let currentDrafts = [];
     let activeCustomer = null;
     let isParsing = false;
+    let latestAgentRun = null;
 
     // --- DOM Elements ---
     const elements = {
         langToggleBtn: document.getElementById("lang-toggle-btn"),
         langCurrentLabel: document.getElementById("lang-current-label"),
+        tabLedgerBtn: document.getElementById("tab-ledger-btn"),
+        tabCollectionsBtn: document.getElementById("tab-collections-btn"),
         homeView: document.getElementById("home-view"),
+        collectionsView: document.getElementById("collections-view"),
         confirmView: document.getElementById("confirm-view"),
         customerDetailView: document.getElementById("customer-detail-view"),
         totalOutstandingAmount: document.getElementById("total-outstanding-amount"),
@@ -176,8 +232,35 @@
         reminderWhatsappLink: document.getElementById("reminder-whatsapp-link"),
         reminderCopyBtn: document.getElementById("reminder-copy-btn"),
         copyBtnLabel: document.getElementById("copy-btn-label"),
+        // Collections View Elements
+        runCollectionsBtn: document.getElementById("run-collections-btn"),
+        runBtnSpinner: document.getElementById("run-btn-spinner"),
+        runBtnText: document.getElementById("run-btn-text"),
+        collectionsSourceBadge: document.getElementById("collections-source-badge"),
+        collectionsChainBadge: document.getElementById("collections-chain-badge"),
+        collectionsSummaryBar: document.getElementById("collections-summary-bar"),
+        summaryProposedChip: document.getElementById("summary-proposed-chip"),
+        summaryVerifiedChip: document.getElementById("summary-verified-chip"),
+        summaryRejectedChip: document.getElementById("summary-rejected-chip"),
+        planCardsContainer: document.getElementById("plan-cards-container"),
+        emptyPlanState: document.getElementById("empty-plan-state"),
+        agentTraceWrapper: document.getElementById("agent-trace-wrapper"),
+        toggleTraceBtn: document.getElementById("toggle-trace-btn"),
+        traceChevron: document.getElementById("trace-chevron"),
+        traceStepsCount: document.getElementById("trace-steps-count"),
+        agentTraceContent: document.getElementById("agent-trace-content"),
+        traceStepsList: document.getElementById("trace-steps-list"),
+        // Ask Elements
+        askForm: document.getElementById("ask-form"),
+        askInput: document.getElementById("ask-input"),
+        askSubmitBtn: document.getElementById("ask-submit-btn"),
+        askResultBox: document.getElementById("ask-result-box"),
+        askVerifiedBadge: document.getElementById("ask-verified-badge"),
+        askSourceBadge: document.getElementById("ask-source-badge"),
+        askAnswerText: document.getElementById("ask-answer-text"),
         toastContainer: document.getElementById("toast-container")
     };
+
 
     // --- Helper: Safe HTML Escaping ---
     function escapeHtml(str) {
@@ -231,10 +314,17 @@
     // --- Navigation ---
     function showView(viewName) {
         elements.homeView.style.display = viewName === "home" ? "flex" : "none";
+        elements.collectionsView.style.display = viewName === "collections" ? "flex" : "none";
         elements.confirmView.style.display = viewName === "confirm" ? "flex" : "none";
         elements.customerDetailView.style.display = viewName === "detail" ? "flex" : "none";
+
+        if (elements.tabLedgerBtn && elements.tabCollectionsBtn) {
+            elements.tabLedgerBtn.classList.toggle("active", viewName === "home");
+            elements.tabCollectionsBtn.classList.toggle("active", viewName === "collections");
+        }
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
+
 
     // --- API Calls ---
     async function loadCustomers() {
@@ -884,8 +974,374 @@
         });
     }
 
+    // --- Ask Balance Feature ---
+    async function handleAskSubmit(e) {
+        if (e) e.preventDefault();
+        const q = (elements.askInput.value || "").trim();
+        if (!q) return;
+
+        elements.askSubmitBtn.disabled = true;
+        elements.askSubmitBtn.textContent = "...";
+        try {
+            const resp = await fetch("/api/ask/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question: q }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || "Failed to get answer");
+
+            elements.askAnswerText.textContent = data.answer;
+            const src = (data.source_label || "mock").toLowerCase();
+            elements.askSourceBadge.className = `badge badge-${src}`;
+            elements.askSourceBadge.textContent = src.toUpperCase();
+            elements.askVerifiedBadge.style.display = data.verified ? "inline-block" : "none";
+            elements.askResultBox.style.display = "block";
+        } catch (err) {
+            showToast(err.message, "error");
+        } finally {
+            elements.askSubmitBtn.disabled = false;
+            elements.askSubmitBtn.textContent = t("askBtn");
+        }
+    }
+
+    // --- Daily Collections Agent Feature ---
+    async function handleRunCollectionsReview() {
+        elements.runCollectionsBtn.disabled = true;
+        elements.runBtnSpinner.style.display = "inline-block";
+        elements.runBtnText.textContent = t("runningReview");
+
+        try {
+            const resp = await fetch("/api/agent/run/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || "Collections review failed");
+
+            latestAgentRun = data.run;
+            renderCollectionsPlan(data.run);
+            showToast(t("runReviewSuccess"), "success");
+        } catch (err) {
+            showToast(err.message, "error");
+        } finally {
+            elements.runCollectionsBtn.disabled = false;
+            elements.runBtnSpinner.style.display = "none";
+            elements.runBtnText.textContent = t("runCollectionsReview");
+        }
+    }
+
+    function renderCollectionsPlan(run) {
+        if (!run || !run.plan) return;
+
+        const plan = run.plan;
+        const actions = plan.actions || [];
+        const summary = plan.summary || { proposed_count: actions.length, verified_count: actions.length, rejected_count: 0 };
+
+        // Badges
+        const src = (run.source_label || "mock").toLowerCase();
+        elements.collectionsSourceBadge.className = `badge badge-${src}`;
+        elements.collectionsSourceBadge.textContent = src.toUpperCase();
+        elements.collectionsSourceBadge.style.display = "inline-block";
+
+        elements.collectionsChainBadge.style.display = "inline-block";
+        if (run.chain_valid) {
+            elements.collectionsChainBadge.className = "badge badge-success";
+            elements.collectionsChainBadge.textContent = `🔗 ${t("chainValid")}`;
+        } else {
+            elements.collectionsChainBadge.className = "badge badge-warning";
+            elements.collectionsChainBadge.textContent = `⚠️ ${t("chainInvalid")}`;
+        }
+
+        // Summary Bar
+        elements.summaryProposedChip.textContent = `Proposed: ${summary.proposed_count}`;
+        elements.summaryVerifiedChip.textContent = `✓ Verified: ${summary.verified_count}`;
+        elements.summaryRejectedChip.textContent = `⚠ Unverified: ${summary.rejected_count}`;
+        elements.collectionsSummaryBar.style.display = "flex";
+
+        // Plan Cards
+        elements.planCardsContainer.innerHTML = "";
+        if (actions.length === 0) {
+            elements.emptyPlanState.style.display = "flex";
+        } else {
+            elements.emptyPlanState.style.display = "none";
+        }
+
+        actions.forEach((a, idx) => {
+            const card = document.createElement("div");
+            card.className = `plan-card ${a.verified ? "" : "unverified-card"}`;
+            card.id = `plan-card-${idx}`;
+
+            // Header Row: Customer Name & Action/Verified Badges
+            const headerRow = document.createElement("div");
+            headerRow.className = "plan-card-header";
+
+            const nameEl = document.createElement("span");
+            nameEl.className = "plan-cust-name";
+            nameEl.textContent = a.customer_name || `Customer #${a.customer_id}`;
+            nameEl.title = "View customer details";
+            nameEl.addEventListener("click", () => {
+                openCustomerDetail(a.customer_id);
+            });
+            headerRow.appendChild(nameEl);
+
+            const badgesCol = document.createElement("div");
+            badgesCol.style.display = "flex";
+            badgesCol.style.gap = "4px";
+            badgesCol.style.flexWrap = "wrap";
+            badgesCol.style.justifyContent = "flex-end";
+
+            // Action Badge
+            const actBadge = document.createElement("span");
+            if (a.action === "remind_now") {
+                actBadge.className = "badge badge-match";
+                actBadge.textContent = t("actionRemindNow");
+            } else if (a.action === "call_personally") {
+                actBadge.className = "badge badge-warning";
+                actBadge.textContent = t("actionCallPersonally");
+            } else {
+                actBadge.className = "badge badge-neutral";
+                actBadge.textContent = t("actionWait");
+            }
+            badgesCol.appendChild(actBadge);
+
+            // Tone Badge
+            const toneBadge = document.createElement("span");
+            toneBadge.className = "badge badge-neutral";
+            toneBadge.textContent = a.tone === "firm" ? t("toneFirmBadge") : t("toneSoftBadge");
+            badgesCol.appendChild(toneBadge);
+
+            // Verified Badge
+            const vBadge = document.createElement("span");
+            if (a.verified) {
+                vBadge.className = "badge badge-success";
+                vBadge.textContent = `✓ ${t("verifiedBadge")}`;
+            } else {
+                vBadge.className = "badge badge-warning";
+                vBadge.textContent = `⚠ ${t("unverifiedBadge")}`;
+            }
+            badgesCol.appendChild(vBadge);
+
+            headerRow.appendChild(badgesCol);
+            card.appendChild(headerRow);
+
+            // Stats Row: Balance & Days Overdue
+            const statsRow = document.createElement("div");
+            statsRow.className = "plan-stats-row";
+
+            let balText = `₹${parseFloat(a.claimed_balance || 0).toFixed(2)}`;
+            if (!a.verified && a.true_balance !== undefined) {
+                balText += ` (True: ₹${parseFloat(a.true_balance).toFixed(2)})`;
+            }
+            const balEl = document.createElement("span");
+            balEl.className = "plan-bal-val";
+            balEl.textContent = balText;
+            statsRow.appendChild(balEl);
+
+            let daysText = `${a.claimed_days_overdue}d overdue`;
+            if (!a.verified && a.true_days_overdue !== undefined) {
+                daysText += ` (True: ${a.true_days_overdue}d)`;
+            }
+            const daysEl = document.createElement("span");
+            daysEl.className = "plan-days-val";
+            daysEl.textContent = daysText;
+            statsRow.appendChild(daysEl);
+
+            card.appendChild(statsRow);
+
+            // Reason Box
+            const reasonBox = document.createElement("div");
+            reasonBox.className = "plan-reason-box";
+            reasonBox.textContent = a.reason;
+            card.appendChild(reasonBox);
+
+            // Evidence Chips Row
+            const evidenceIds = a.evidence_entry_ids || [];
+            if (evidenceIds.length > 0) {
+                const evRow = document.createElement("div");
+                evRow.className = "plan-evidence-row";
+
+                const evLabel = document.createElement("span");
+                evLabel.textContent = `${t("evidenceTitle")} `;
+                evRow.appendChild(evLabel);
+
+                evidenceIds.forEach(eid => {
+                    const chip = document.createElement("button");
+                    chip.type = "button";
+                    chip.className = "evidence-chip";
+                    chip.textContent = `#${eid}`;
+                    chip.title = `View entry #${eid} in customer timeline`;
+                    chip.addEventListener("click", () => {
+                        openEvidenceEntry(a.customer_id, eid);
+                    });
+                    evRow.appendChild(chip);
+                });
+
+                card.appendChild(evRow);
+            }
+
+            // Failed checks (if unverified)
+            if (!a.verified && a.failed_checks && a.failed_checks.length > 0) {
+                const failBox = document.createElement("div");
+                failBox.className = "failed-checks-box";
+                failBox.textContent = `${t("failedChecksTitle")} ${a.failed_checks.join(", ")}`;
+                card.appendChild(failBox);
+            }
+
+            // Action Buttons Row (Draft Reminder & Skip)
+            const actionsRow = document.createElement("div");
+            actionsRow.className = "plan-actions-row";
+
+            const draftBtn = document.createElement("button");
+            draftBtn.type = "button";
+            draftBtn.className = "btn btn-primary btn-sm";
+            draftBtn.textContent = `📢 ${t("draftReminderBtn")}`;
+            draftBtn.addEventListener("click", () => {
+                handleApproveReminder(run.id, a.customer_id);
+            });
+            actionsRow.appendChild(draftBtn);
+
+            const skipBtn = document.createElement("button");
+            skipBtn.type = "button";
+            skipBtn.className = "btn btn-secondary btn-sm";
+            skipBtn.textContent = t("skipBtn");
+            skipBtn.addEventListener("click", () => {
+                card.style.opacity = "0.35";
+                card.style.transform = "scale(0.98)";
+                card.style.pointerEvents = "none";
+            });
+            actionsRow.appendChild(skipBtn);
+
+            card.appendChild(actionsRow);
+            elements.planCardsContainer.appendChild(card);
+        });
+
+        // Setup Agent Trace details
+        loadAndRenderTrace(run.id);
+    }
+
+    async function loadAndRenderTrace(runId) {
+        try {
+            const resp = await fetch(`/api/agent/run/${runId}/`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const run = data.run;
+            const steps = run.steps || [];
+
+            elements.traceStepsCount.textContent = `${steps.length} steps`;
+            elements.agentTraceWrapper.style.display = "block";
+            elements.traceStepsList.innerHTML = "";
+
+            steps.forEach(s => {
+                const item = document.createElement("div");
+                item.className = "trace-step-item";
+
+                const hdr = document.createElement("div");
+                hdr.className = "trace-step-header";
+
+                const nameTag = document.createElement("span");
+                nameTag.className = "trace-step-name";
+                nameTag.textContent = `#${s.index} [${s.kind}] ${s.name}`;
+                hdr.appendChild(nameTag);
+
+                const hashTag = document.createElement("span");
+                hashTag.className = "trace-step-hash";
+                hashTag.textContent = s.step_hash ? s.step_hash.substring(0, 10) + "..." : "";
+                hashTag.title = `Hash: ${s.step_hash}\nPrev: ${s.prev_hash}`;
+                hdr.appendChild(hashTag);
+
+                item.appendChild(hdr);
+
+                const sumEl = document.createElement("div");
+                sumEl.className = "trace-step-summary";
+                sumEl.textContent = `${s.summary} (${s.latency_ms}ms, ${s.tokens} tok)`;
+                item.appendChild(sumEl);
+
+                elements.traceStepsList.appendChild(item);
+            });
+        } catch (e) {
+            console.error("Failed to load agent trace", e);
+        }
+    }
+
+    function toggleTrace() {
+        const isHidden = elements.agentTraceContent.style.display === "none";
+        elements.agentTraceContent.style.display = isHidden ? "block" : "none";
+        elements.traceChevron.classList.toggle("open", isHidden);
+    }
+
+    async function openEvidenceEntry(customerId, entryId) {
+        await openCustomerDetail(customerId);
+        setTimeout(() => {
+            const entryEl = document.getElementById(`timeline-entry-${entryId}`);
+            if (entryEl) {
+                entryEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                entryEl.style.outline = "2px solid var(--primary)";
+                setTimeout(() => {
+                    entryEl.style.outline = "none";
+                    entryEl.style.transition = "outline 0.5s ease";
+                }, 2500);
+            }
+        }, 300);
+    }
+
+    async function handleApproveReminder(runId, customerId) {
+        try {
+            const resp = await fetch("/api/agent/approve/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ run_id: runId, customer_id: customerId }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || "Approval draft failed");
+
+            // Open reminder modal with the generated draft
+            elements.reminderCustomerSubtitle.textContent = `${data.customer_name} (₹${data.balance})`;
+            elements.reminderMessageText.textContent = data.message;
+            elements.reminderVerifiedBadge.style.display = data.verified ? "inline-flex" : "none";
+
+            const src = (data.source_label || "mock").toLowerCase();
+            elements.reminderSourceBadge.className = `badge badge-${src}`;
+            elements.reminderSourceBadge.textContent = src.toUpperCase();
+
+            if (data.whatsapp_url) {
+                elements.reminderWhatsappLink.href = data.whatsapp_url;
+                elements.reminderWhatsappLink.style.display = "inline-flex";
+            } else {
+                elements.reminderWhatsappLink.style.display = "none";
+            }
+
+            elements.reminderOutputBox.style.display = "block";
+            elements.reminderModal.style.display = "flex";
+        } catch (err) {
+            showToast(err.message, "error");
+        }
+    }
+
     // --- Event Listeners ---
     function setupEventListeners() {
+        // Tab Navigation
+        if (elements.tabLedgerBtn) {
+            elements.tabLedgerBtn.addEventListener("click", () => showView("home"));
+        }
+        if (elements.tabCollectionsBtn) {
+            elements.tabCollectionsBtn.addEventListener("click", () => showView("collections"));
+        }
+
+        // Ask Feature
+        if (elements.askForm) {
+            elements.askForm.addEventListener("submit", handleAskSubmit);
+        }
+
+        // Collections Agent Feature
+        if (elements.runCollectionsBtn) {
+            elements.runCollectionsBtn.addEventListener("click", handleRunCollectionsReview);
+        }
+        if (elements.toggleTraceBtn) {
+            elements.toggleTraceBtn.addEventListener("click", toggleTrace);
+        }
+
         // Language Toggle
         elements.langToggleBtn.addEventListener("click", () => {
             currentLang = currentLang === "en" ? "ta" : "en";
@@ -893,6 +1349,7 @@
             applyTranslations();
             renderCustomerList();
         });
+
 
         // Search Filter
         elements.customerSearchInput.addEventListener("input", () => {

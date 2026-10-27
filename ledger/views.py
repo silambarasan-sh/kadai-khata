@@ -297,3 +297,164 @@ def api_reminder(request: HttpRequest) -> JsonResponse:
         "source_label": result.source_label,
         "whatsapp_url": result.whatsapp_url,
     })
+
+
+@csrf_exempt
+@require_POST
+def api_agent_run(request: HttpRequest) -> JsonResponse:
+    """Trigger a new Daily Collections Agent review run."""
+    from .agent import AgentRunner
+
+    mode = None
+    if request.body:
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+            mode = data.get("mode")
+        except Exception:
+            pass
+
+    runner = AgentRunner(mode=mode)
+    run_obj = runner.run()
+
+    from .agent_replay import verify_run_replay
+    replay_info = verify_run_replay(run_obj.id)
+
+    return JsonResponse({
+        "status": "ok",
+        "run": {
+            "id": run_obj.id,
+            "source_label": run_obj.source_label,
+            "status": run_obj.status,
+            "total_tokens": run_obj.total_tokens,
+            "latency_ms": run_obj.latency_ms,
+            "final_hash": run_obj.final_hash,
+            "chain_valid": replay_info.get("chain_valid", True),
+            "created_at": run_obj.created_at.isoformat(),
+            "plan": run_obj.plan_json,
+            "steps_count": run_obj.steps.count(),
+        },
+    })
+
+
+@require_GET
+def api_agent_run_detail(request: HttpRequest, run_id: int) -> JsonResponse:
+    """Fetch details and full audit trace for an AgentRun."""
+    from .models import AgentRun
+    from .agent_replay import verify_run_replay
+
+    try:
+        run_obj = AgentRun.objects.get(id=run_id)
+    except AgentRun.DoesNotExist:
+        return _json_error(f"AgentRun #{run_id} not found.", status=404)
+
+    replay_info = verify_run_replay(run_obj.id)
+    steps_data = []
+    for s in run_obj.steps.all().order_by("index"):
+        steps_data.append({
+            "index": s.index,
+            "kind": s.kind,
+            "name": s.name,
+            "args": s.args_json,
+            "result": s.result_json,
+            "summary": s.result_summary,
+            "latency_ms": s.latency_ms,
+            "tokens": s.tokens,
+            "prev_hash": s.prev_hash,
+            "step_hash": s.step_hash,
+        })
+
+    return JsonResponse({
+        "status": "ok",
+        "run": {
+            "id": run_obj.id,
+            "source_label": run_obj.source_label,
+            "status": run_obj.status,
+            "total_tokens": run_obj.total_tokens,
+            "latency_ms": run_obj.latency_ms,
+            "final_hash": run_obj.final_hash,
+            "chain_valid": replay_info.get("chain_valid", False),
+            "created_at": run_obj.created_at.isoformat(),
+            "plan": run_obj.plan_json,
+            "steps": steps_data,
+        },
+    })
+
+
+@csrf_exempt
+@require_POST
+def api_agent_approve(request: HttpRequest) -> JsonResponse:
+    """Approve a collection proposal for a customer and draft a reminder.
+
+    Does not send anything and creates NO ledger entry.
+    """
+    from .models import AgentRun
+
+    try:
+        data = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON payload.")
+
+    run_id = data.get("run_id")
+    customer_id = data.get("customer_id")
+    if not run_id or not customer_id:
+        return _json_error("Fields 'run_id' and 'customer_id' are required.")
+
+    try:
+        run_obj = AgentRun.objects.get(id=run_id)
+    except AgentRun.DoesNotExist:
+        return _json_error(f"AgentRun #{run_id} not found.", status=404)
+
+    try:
+        customer = Customer.objects.get(id=customer_id)
+    except Customer.DoesNotExist:
+        return _json_error(f"Customer #{customer_id} not found.", status=404)
+
+    # Find the corresponding action if available to get suggested tone
+    tone = "soft"
+    if run_obj.plan_json and "actions" in run_obj.plan_json:
+        for a in run_obj.plan_json["actions"]:
+            if a.get("customer_id") == int(customer_id):
+                tone = a.get("tone", "soft")
+                break
+
+    language = data.get("language", "ta")
+    result = generate_reminder(customer_id=customer.id, language=language, tone=tone)
+
+    return JsonResponse({
+        "status": "ok",
+        "run_id": run_obj.id,
+        "customer_id": result.customer_id,
+        "customer_name": result.customer_name,
+        "phone": result.phone,
+        "balance": result.balance,
+        "days_overdue": result.days_overdue,
+        "language": result.language,
+        "tone": result.tone,
+        "message": result.message,
+        "verified": result.verified,
+        "source_label": result.source_label,
+        "whatsapp_url": result.whatsapp_url,
+    })
+
+
+@csrf_exempt
+@require_POST
+def api_ask(request: HttpRequest) -> JsonResponse:
+    """Read-only question answering endpoint about customer balances."""
+    from .ask import answer_question
+
+    try:
+        data = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON payload.")
+
+    question = str(data.get("question", "")).strip()
+    if not question:
+        return _json_error("Field 'question' is required.")
+
+    mode = data.get("mode")
+    result = answer_question(question, mode=mode)
+    return JsonResponse({"status": "ok", **result})
+
+
+

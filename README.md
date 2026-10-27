@@ -163,5 +163,75 @@ Evaluated across **204 live API runs** (34 sentences × 3 repeats for each reaso
 
 ---
 
+## Collections Agent & Read-Only Ask Endpoint
+
+Kadai Khata includes an autonomous, read-only **Daily Collections Agent** and an **Ask** endpoint with deterministic balance verification and cryptographic audit logging.
+
+### 1. Daily Collections Agent Architecture
+
+- **Goal**: On demand, the agent investigates ledger accounts and proposes a structured daily collections plan (who to remind today and how).
+- **Zero-Write Guarantee**: The agent has strictly **read-only access**. It can only read ledger records and **propose** actions. It never sends messages, creates entries, or modifies data.
+- **Tools (`ledger/agent_tools.py`)**:
+  - `list_overdue_customers(min_balance, min_days_since_last_payment)`: Returns customers with outstanding debt and payment dates.
+  - `get_customer_history(customer_id, limit<=20)`: Fetches recent transaction IDs, dates, amounts, and notes.
+  - `get_payment_pattern(customer_id)`: Server-computes average days between payments, last payment amount/date, and reversals count.
+  - `submit_plan(actions[])`: Terminal tool (up to 8 actions). Each action specifies `customer_id`, `action` (`remind_now` | `wait` | `call_personally`), `tone` (`soft` | `firm`), `claimed_balance`, `claimed_days_overdue`, `reason` (<= 200 chars), and `evidence_entry_ids[]`.
+- **Prompt Injection Defense**: Ledger notes and transaction text are untrusted data. The system prompt instructs the agent to treat all tool outputs strictly as passive data and never obey instructions embedded in ledger notes.
+
+### 2. Execution Loop & Boundaries (`ledger/agent.py`)
+
+- **Tool Choice**: `tool_choice="auto"`.
+- **Parallel Tool Calls**: Natively handled across multi-tool responses.
+- **Caps & Safeguards**:
+  - Max 6 model turns (`AGENT_MAX_TURNS`)
+  - Max 12 tool executions (`AGENT_MAX_TOOL_CALLS`)
+  - Token cap (`AGENT_MAX_TOKENS = 15000`)
+  - Timeout (`AGENT_TIMEOUT_SECONDS = 45s`)
+  - Single nudge on plain text before triggering fallback.
+  - Hard cap of 8 actions per plan.
+
+### 3. Ground Truth Verifier (`ledger/agent_verifier.py`)
+
+Every proposed action is verified against database ground truth before display:
+1. Recomputes true balance and days overdue directly from DB records.
+2. Balance match must be exact (within ₹0.01).
+3. Days overdue must match within ±1 day.
+4. Customer must exist and have a positive balance (> 0).
+5. Every `evidence_entry_id` must exist and belong to that exact customer.
+
+**No Silent Dropping**: Actions that fail verification are marked `verified: false` with specific `failed_checks` and displayed with true recomputed values.
+
+### 4. Append-Only Audit Trace & Cryptographic Hash Chain
+
+- **Append-Only Model**: `AgentStep` blocks modification and deletion at both model and queryset levels (`save()` on an existing row raises `RuntimeError`, `delete()` raises `RuntimeError`).
+- **Cryptographic Hash Chain**: Every step calculates `hash = sha256(prev_hash + canonical_step_json)`. `AgentRun` stores `final_hash`.
+- **Offline Replay Command (`agent_replay <run_id>`)**:
+  - Recomputes the hash chain from step 1 to final hash.
+  - Re-runs the verifier on recorded actions using **only stored tool results** without invoking any AI model or network calls.
+  - Validates chain integrity and verifies whether verdicts match stored results.
+- **Honest Caveat**: *Cryptographic hash chaining proves that a run is auditable, immutable, and replayable offline without modification; it does NOT prove that the model's subjective reasoning was correct.*
+
+### 5. Deterministic Fallback & Mock Modes
+
+- **Mock Mode (`META_MODE="mock"`)**: Scripted offline simulation exercising real tools and producing verified plans.
+- **Fallback (`source_label="fallback"`)**: If live agent times out, fails, or violates caps, a deterministic aging-based algorithm assigns recommendations based on overdue duration (60+ days -> `call_personally`, 30-59 days -> `remind_now` firm, <30 days -> `remind_now` soft).
+
+### 6. Read-Only "Ask" Endpoint (`/api/ask/`)
+
+- Supports shopkeeper balance questions (e.g. *"Ravi evlo baaki?"*).
+- Uses read-only tools `get_customer_balance` and `list_customers_with_balance`.
+- **Amount Verification**: Every rupee number mentioned in the synthesized response must appear in the tool results; any mismatched or hallucinated amount triggers a deterministic fallback.
+
+### 7. Evaluation Benchmark (`eval_agent`)
+
+Run the 10-customer scenario (3 clearly overdue 60+ days, 2 active, 2 zero-balance, 1 adversarial prompt injection, 2 mixed):
+```powershell
+python manage.py eval_agent --runs 3 --live
+```
+*(Live benchmark numbers will be populated upon running the live evaluation command).*
+
+
+---
+
 ## License
 MIT License - Copyright (c) 2026 Silambarasan N

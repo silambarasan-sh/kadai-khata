@@ -12,4 +12,9 @@ urlpatterns = [
     path("api/customers/<int:customer_id>/timeline/", views.api_customer_timeline, name="api_customer_timeline"),
     path("api/reverse/", views.api_reverse, name="api_reverse"),
     path("api/reminder/", views.api_reminder, name="api_reminder"),
+    path("api/agent/run/", views.api_agent_run, name="api_agent_run"),
+    path("api/agent/run/<int:run_id>/", views.api_agent_run_detail, name="api_agent_run_detail"),
+    path("api/agent/approve/", views.api_agent_approve, name="api_agent_approve"),
+    path("api/ask/", views.api_ask, name="api_ask"),
 ]
+

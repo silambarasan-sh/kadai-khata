@@ -110,3 +110,10 @@ META_MODE = os.getenv("META_MODE", "mock").strip().lower()
 META_TIMEOUT_SECONDS = float(os.getenv("META_TIMEOUT_SECONDS", "30.0"))
 META_REASONING_EFFORT = os.getenv("META_REASONING_EFFORT", "").strip() or None
 MAX_INPUT_TEXT_LENGTH = int(os.getenv("MAX_INPUT_TEXT_LENGTH", "500"))
+
+# Collections Agent settings
+AGENT_MAX_TURNS = int(os.getenv("AGENT_MAX_TURNS", "6"))
+AGENT_MAX_TOOL_CALLS = int(os.getenv("AGENT_MAX_TOOL_CALLS", "12"))
+AGENT_MAX_TOKENS = int(os.getenv("AGENT_MAX_TOKENS", "15000"))
+AGENT_TIMEOUT_SECONDS = float(os.getenv("AGENT_TIMEOUT_SECONDS", "45.0"))
+

@@ -125,3 +125,125 @@ class DraftEntry(models.Model):
             f"Draft [{self.status}]: {self.customer_name} - "
             f"{self.get_kind_display()} ₹{self.amount} ({self.source_label})"
         )
+
+
+def compute_step_hash(
+    prev_hash: str,
+    index: int,
+    kind: str,
+    name: str,
+    args_json: dict,
+    result_json: dict,
+    latency_ms: float,
+    tokens: int,
+) -> str:
+    import hashlib
+    import json
+
+    payload = {
+        "index": int(index),
+        "kind": str(kind),
+        "name": str(name),
+        "args_json": args_json or {},
+        "result_json": result_json or {},
+        "latency_ms": int(round(float(latency_ms))),
+        "tokens": int(tokens),
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256((prev_hash + canonical).encode("utf-8")).hexdigest()
+
+
+class AgentRunStatus(models.TextChoices):
+    RUNNING = "running", "Running"
+    COMPLETED = "completed", "Completed"
+    FAILED = "failed", "Failed"
+
+
+class AgentRun(models.Model):
+    """An execution run of the Daily Collections Agent."""
+
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    source_label = models.CharField(
+        max_length=20,
+        choices=SourceLabel.choices,
+        default=SourceLabel.MOCK,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=AgentRunStatus.choices,
+        default=AgentRunStatus.RUNNING,
+        db_index=True,
+    )
+    total_tokens = models.IntegerField(default=0)
+    latency_ms = models.FloatField(default=0.0)
+    final_hash = models.CharField(max_length=64, blank=True, default="")
+    plan_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Agent Run"
+        verbose_name_plural = "Agent Runs"
+
+    def __str__(self) -> str:
+        return f"AgentRun #{self.id} ({self.source_label}, {self.status}, {self.created_at:%Y-%m-%d %H:%M})"
+
+
+class AppendOnlyQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise RuntimeError("AgentStep is append-only and cannot be bulk updated.")
+
+    def delete(self):
+        raise RuntimeError("AgentStep is append-only and cannot be bulk deleted.")
+
+
+class AgentStep(models.Model):
+    """Append-only step in the Agent execution trace with cryptographic hash chaining."""
+
+    run = models.ForeignKey(
+        AgentRun,
+        on_delete=models.CASCADE,
+        related_name="steps",
+    )
+    index = models.PositiveIntegerField()
+    kind = models.CharField(max_length=20)  # model | tool | verifier
+    name = models.CharField(max_length=100)
+    args_json = models.JSONField(default=dict, blank=True)
+    result_json = models.JSONField(default=dict, blank=True)
+    result_summary = models.TextField(blank=True, default="")
+    latency_ms = models.FloatField(default=0.0)
+    tokens = models.IntegerField(default=0)
+    prev_hash = models.CharField(max_length=64, default="", blank=True)
+    step_hash = models.CharField(max_length=64, default="", blank=True)
+
+    objects = AppendOnlyQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["index", "id"]
+        verbose_name = "Agent Step"
+        verbose_name_plural = "Agent Steps"
+        constraints = [
+            models.UniqueConstraint(fields=["run", "index"], name="unique_run_step_index"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk and AgentStep.objects.filter(pk=self.pk).exists():
+            raise RuntimeError("AgentStep is append-only and cannot be modified.")
+        self.step_hash = compute_step_hash(
+            self.prev_hash,
+            self.index,
+            self.kind,
+            self.name,
+            self.args_json,
+            self.result_json,
+            self.latency_ms,
+            self.tokens,
+        )
+        super().save(*args, **kwargs)
+
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError("AgentStep is append-only and cannot be deleted.")
+
+    def __str__(self) -> str:
+        return f"Step #{self.index} [{self.kind}] {self.name} (run {self.run_id})"
+

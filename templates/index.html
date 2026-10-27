@@ -22,6 +22,17 @@
                     </button>
                 </div>
             </div>
+            <!-- Sub-header Navigation Tabs -->
+            <nav class="app-nav-tabs" aria-label="Primary sections">
+                <button id="tab-ledger-btn" class="nav-tab active" type="button">
+                    <span class="tab-icon" aria-hidden="true">&#128214;</span>
+                    <span data-i18n="tabLedger">Ledger</span>
+                </button>
+                <button id="tab-collections-btn" class="nav-tab" type="button">
+                    <span class="tab-icon" aria-hidden="true">&#129302;</span>
+                    <span data-i18n="tabCollections">Collections</span>
+                </button>
+            </nav>
         </header>
 
         <!-- Main Content Area -->
@@ -41,6 +52,39 @@
                     <p class="summary-subtitle" data-i18n="summaryHint">Net credit owed across all customers</p>
                 </div>
 
+                <!-- Ask Balance Quick Input Bar -->
+                <div class="card ask-container">
+                    <div class="ask-header">
+                        <div class="ask-title-wrapper">
+                            <span class="ask-icon" aria-hidden="true">&#129300;</span>
+                            <span class="ask-title" data-i18n="askTitle">Ask Balance</span>
+                        </div>
+                        <span class="badge badge-neutral badge-sm">Read-only AI</span>
+                    </div>
+                    <form id="ask-form" class="ask-form" onsubmit="return false;">
+                        <div class="ask-input-row">
+                            <input
+                                type="text"
+                                id="ask-input"
+                                class="ask-input"
+                                data-i18n-placeholder="askPlaceholder"
+                                placeholder="Ravi evlo baaki?..."
+                                autocomplete="off"
+                            >
+                            <button id="ask-submit-btn" class="btn btn-secondary btn-sm" type="submit">
+                                <span data-i18n="askBtn">Ask</span>
+                            </button>
+                        </div>
+                    </form>
+                    <div id="ask-result-box" class="ask-result-box" style="display: none;">
+                        <div class="ask-result-meta">
+                            <span id="ask-verified-badge" class="badge badge-success">&#10003; Verified</span>
+                            <span id="ask-source-badge" class="badge badge-mock">MOCK</span>
+                        </div>
+                        <p id="ask-answer-text" class="ask-answer-text"></p>
+                    </div>
+                </div>
+
                 <!-- Search and Filter Bar -->
                 <div class="search-container">
                     <div class="search-input-wrapper">
@@ -57,6 +101,7 @@
                         <button id="search-clear-btn" class="search-clear-btn" type="button" aria-label="Clear search" style="display: none;">&times;</button>
                     </div>
                 </div>
+
 
                 <!-- Customers List Section -->
                 <div class="section-header">
@@ -76,8 +121,70 @@
                 </div>
             </section>
 
+            <!-- Collections View: Daily Collections Agent -->
+            <section id="collections-view" class="view-section" style="display: none;" aria-labelledby="collections-title">
+                <div class="collections-header-card card">
+                    <div class="collections-meta-row">
+                        <div>
+                            <h2 id="collections-title" class="section-title" data-i18n="collectionsTitle">Daily Collections Review</h2>
+                            <p class="collections-subtitle" data-i18n="collectionsSubtitle">AI proposes who to remind today. Read-only review.</p>
+                        </div>
+                        <div id="collections-status-badge-container" class="collections-badges-top">
+                            <span id="collections-source-badge" class="badge badge-mock" style="display: none;">MOCK</span>
+                            <span id="collections-chain-badge" class="badge badge-success" style="display: none;">&#128279; <span data-i18n="chainValid">Chain valid</span></span>
+                        </div>
+                    </div>
+                    <div class="collections-action-row">
+                        <button id="run-collections-btn" class="btn btn-primary btn-block" type="button">
+                            <span id="run-btn-spinner" class="status-spinner" style="display: none;" aria-hidden="true"></span>
+                            <span id="run-btn-text" data-i18n="runCollectionsReview">&#128640; Run today's review</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Summary Stats Bar after run -->
+                <div id="collections-summary-bar" class="collections-summary-bar" style="display: none;">
+                    <span id="summary-proposed-chip" class="summary-chip">Proposed: 0</span>
+                    <span id="summary-verified-chip" class="summary-chip summary-chip-success">&#10003; Verified: 0</span>
+                    <span id="summary-rejected-chip" class="summary-chip summary-chip-warning">&#9888; Unverified: 0</span>
+                </div>
+
+                <!-- Proposed Plan Cards Container -->
+                <div id="plan-cards-container" class="plan-cards-list">
+                    <!-- Rendered plan cards -->
+                </div>
+
+                <div id="empty-plan-state" class="empty-state">
+                    <div class="empty-icon">&#128197;</div>
+                    <h3 data-i18n="noPlanYet">No collections review yet</h3>
+                    <p data-i18n="noPlanHint">Click 'Run today's review' above to analyze outstanding balances and generate verified proposals.</p>
+                </div>
+
+                <!-- Collapsible Agent Trace Section -->
+                <div id="agent-trace-wrapper" class="agent-trace-wrapper card" style="display: none;">
+                    <button id="toggle-trace-btn" class="trace-toggle-header" type="button">
+                        <span class="trace-title">
+                            <span aria-hidden="true">&#128065;</span>
+                            <span data-i18n="agentTrace">Agent Execution Trace</span>
+                            <span id="trace-steps-count" class="badge badge-neutral">0 steps</span>
+                        </span>
+                        <span id="trace-chevron" class="chevron">&#9660;</span>
+                    </button>
+                    <div id="agent-trace-content" class="agent-trace-content" style="display: none;">
+                        <div class="trace-audit-banner">
+                            <span class="badge badge-success" id="trace-audit-badge">&#10003; <span data-i18n="chainValid">Chain valid</span></span>
+                            <span class="trace-audit-note">Append-only audit trail with SHA-256 hash chaining</span>
+                        </div>
+                        <div id="trace-steps-list" class="trace-steps-list">
+                            <!-- Trace step items -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Screen 3: Pending Confirm Cards View / Overlay -->
             <section id="confirm-view" class="view-section" style="display: none;" aria-labelledby="confirm-section-title">
+
                 <div class="confirm-header-bar">
                     <div>
                         <h2 id="confirm-section-title" class="section-title" data-i18n="confirmDraftsTitle">Review Draft Entries</h2>
