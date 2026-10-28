@@ -1,0 +1,14 @@
+{
+  "owner_verified": false,
+  "rows": [
+    {"customer": "Raja", "kind": "credit_given", "amount": 110},
+    {"customer": "Rani", "kind": "payment_received", "amount": 260}
+  ],
+  "cancelled": ["Gopi tea 40"],
+  "unreadable": ["Murugan 28/10"],
+  "total_udhaar": 110,
+  "total_jama": 260,
+  "aliases": {
+    "Rani": ["Kani"]
+  }
+}

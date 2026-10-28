@@ -1,0 +1,43 @@
+{
+  "owner_verified": false,
+  "rows": [
+    {
+      "customer": "Murugan",
+      "kind": "credit_given",
+      "amount": 45
+    },
+    {
+      "customer": "Raja",
+      "kind": "payment_received",
+      "amount": 500
+    },
+    {
+      "customer": "Selvi",
+      "kind": "credit_given",
+      "amount": 350
+    },
+    {
+      "customer": "Kumar",
+      "kind": "credit_given",
+      "amount": 60
+    }
+  ],
+  "cancelled": [],
+  "unreadable": [],
+  "total_udhaar": 455,
+  "total_jama": 500,
+  "aliases": {
+    "Murugan": [
+      "முருகன்"
+    ],
+    "Raja": [
+      "ராஜா"
+    ],
+    "Selvi": [
+      "செல்வி"
+    ],
+    "Kumar": [
+      "குமார்"
+    ]
+  }
+}

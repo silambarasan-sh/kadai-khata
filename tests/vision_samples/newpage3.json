@@ -1,0 +1,35 @@
+{
+  "owner_verified": false,
+  "rows": [
+    {
+      "customer": "Ravi",
+      "kind": "credit_given",
+      "amount": 90
+    },
+    {
+      "customer": "Mani",
+      "kind": "payment_received",
+      "amount": 500
+    },
+    {
+      "customer": "Selvi",
+      "kind": "credit_given",
+      "amount": 150
+    },
+    {
+      "customer": "Kumar",
+      "kind": "credit_given",
+      "amount": 350
+    },
+    {
+      "customer": "Bala",
+      "kind": "payment_received",
+      "amount": 300
+    }
+  ],
+  "cancelled": [],
+  "unreadable": [],
+  "total_udhaar": 590,
+  "total_jama": 800,
+  "aliases": {}
+}

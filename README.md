@@ -1,17 +1,45 @@
-# Kadai Khata (கடை खाता / கடை கணக்கு)
+# Kadai Khata (கடை கணக்கு)
 
-A Tanglish (Tamil + English) voice/text udhaar (credit) ledger assistant designed for small neighborhood shop owners (kirana / petty shops) in Tamil Nadu.
+A Tanglish (Tamil + English) text and notebook photo udhaar (credit) ledger assistant designed for small neighborhood shop owners (kirana / petty shops) in Tamil Nadu. (Note: voice input is not built; input is text and notebook photo).
 
-Shop owners speak or type natural everyday phrases like *"Ravi-ku 500 rupees udhaar kuduthen"* (Gave 500 rupees credit to Ravi) or *"Priya 200 kuduthanga"* (Priya paid 200). A Meta AI model parses the intent into a structured transaction draft via tool calling. The shop owner verifies and confirms the transaction before anything is saved to the ledger.
+Shop owners type natural everyday phrases like *"Ravi-ku 500 rupees udhaar kuduthen"* (Gave 500 rupees credit to Ravi) or *"Priya 200 kuduthanga"* (Priya paid 200), or photograph handwritten pages from physical paper khata notebooks. A Meta AI model parses the intent into structured transaction drafts via tool calling. The shop owner verifies and confirms the transaction before anything is saved to the ledger.
 
 ---
 
 ## What It Does
-- **Tanglish Speech & Text Understanding**: Parses conversational Tamil-English statements for credit given (*udhaar*) and repayments (*panam vanthathu*).
+- **Tanglish Text & Notebook Photo Understanding**: Parses conversational Tamil-English statements and handwritten notebook page photos for credit given (*udhaar*) and repayments (*panam vanthathu*). (Voice input is NOT built; input is via text and notebook photos).
 - **Human-in-the-Loop Confirmation**: AI never writes directly to the database without explicit owner review and approval.
 - **Ledger & Outstanding Tracking**: Real-time balance calculations per customer with transaction history.
-- **Polite Payment Reminders**: Drafts gentle, localized reminder messages in Tanglish/Tamil for WhatsApp or SMS.
+- **Polite Payment Reminders**: Drafts gentle, localized reminder messages in Tanglish/Tamil with direct WhatsApp link (`wa.me`) or clipboard copy only (SMS is not supported).
 - **Mobile-First Interface**: Designed for single-hand mobile use by shopkeepers with quick actions.
+
+---
+
+## Originality & Disclosure
+
+- **Development Timeline**: Development started on Oct 27, 2026 (first commit timestamp in git: `fbc7768 Tue Oct 27 11:29:39 2026 +0530`).
+- **Repository Scope**: All code was written in this repository during the hackathon building period.
+- **AI Assistance**: Built with AI coding assistance (Antigravity IDE).
+- **Code Provenance**: No code was copied from Meta's cookbook, sample clients, or earlier projects.
+- **Documentation**: Meta documentation was used only to learn API shapes, parameter formats, and endpoint behaviors.
+
+---
+
+## What Was Built During the Hackathon
+
+All code in this repository was built from scratch during the hackathon building period (first commit: `fbc7768` on Tue Oct 27 11:29:39 2026 +0530). The test suite contains 82 tests (`pytest -q`), all passing.
+
+- **Scaffold & Backend**: Django ledger application setup with clean models for `Customer`, `LedgerEntry`, `DraftEntry`, `AgentRun`, and `AgentStep` with decimal currency precision.
+- **Meta AI Client Layer (`ledger/meta_client.py`)**: Centralized OpenAI SDK wrapper calling Meta API endpoints (`muse-spark-1.3`), handling live tool calling, exponential backoff with jitter on HTTP 429/5xx, explicit non-retry on 400, diagnostic logging, cached token reporting, and a deterministic offline mock client.
+- **Tanglish Parser with Confirm Flow**: Multi-turn text parser converting conversational Tanglish into pending `DraftEntry` objects using function calling (`record_ledger_entry`, `ask_clarification`) with an explicit human-in-the-loop review/confirmation gate.
+- **Safety Warnings Layer**: Real-time business logic safety flags on draft cards: anomalous amounts (>3x avg and >2x previous max), overpayments (payment exceeding balance), new customer on payment, and strict name-match guards.
+- **Mobile Web UI**: Single-page mobile-responsive web interface (optimized for 390px mobile screens) with Tamil/English toggles, aging breakdown badges, quick filters, and zero CDN dependencies.
+- **Verified Reminders**: Payment reminder generator drafting localized Tamil/Tanglish messages with an automated balance verifier, single retry loop, fallback templates, and WhatsApp (`wa.me`) link or clipboard copy.
+- **Reversal Entries**: Non-destructive accounting audit trail allowing shopkeepers to reverse erroneous entries while preserving historical ledger records with offsetting transactions.
+- **Collections Agent + Verifier + Hash-Chained Trace + Offline Replay**: Read-only autonomous agent proposing daily collection priorities using 4 read-only ledger tools; ground-truth verifier validating claimed balances and evidence IDs; append-only tamper-evident SHA-256 hash-chained execution trace (`ledger_agentstep`); and `agent_replay` CLI command verifying trace integrity offline without network calls.
+- **Ask Endpoint (`/api/ask/`)**: Natural language query endpoint answering shopkeeper questions on balances and customer debt with amount verification guards.
+- **Notebook Photo Workflow**: In-memory computer vision pipeline parsing multi-row handwritten ledger photos into draft batches, extracting column totals, matching Tamil names with Latin transliterations, filtering struck-out and smudged rows, and performing per-column total consistency checks.
+- **Evaluation Tooling**: Automated evaluation CLI suites: `eval_parser` (multi-metric recall, accuracy, reasoning effort comparison across golden, held-out, and realistic negative sets), `eval_agent` (multi-run injection resistance and verification audit), and `eval_vision` (photo extraction benchmark with owner-verification detection).
 
 ---
 
@@ -47,27 +75,11 @@ python manage.py seed_demo_data
 python manage.py meta_check
 
 # 8. Run test suite
-pytest
+pytest -q
 
 # 9. Start development server
 python manage.py runserver
 ```
-
----
-
-## What Was Built During the Hackathon
-- **Django Ledger Backend**: Clean models for `Customer` and `LedgerEntry` with decimal precision for currency.
-- **Core Ledger Services**: Balance computation, customer resolution, amount bounds validation, and idempotent seeding.
-- **Meta AI Client Layer (`ledger/meta_client.py`)**:
-  - The single centralized entry point for calling Meta models via the OpenAI Python SDK.
-  - Exponential backoff with jitter on HTTP 429 (rate limits) and 5xx (server errors).
-  - Explicit non-retry on HTTP 400 (bad requests).
-  - Clear error reporting for HTTP 401 (invalid/missing key) and 404 (model/endpoint not found).
-  - Fully deterministic offline mock client for zero-cost testing and continuous integration.
-- **Management Commands**:
-  - `seed_demo_data`: Seeds 8 Tamil Nadu customers and 40 realistic transactions over 60 days (idempotent).
-  - `meta_check`: Diagnostic utility to verify Meta API connection, model ping, token counts, and latency without leaking secrets.
-- **Test Suite**: Comprehensive pytest suite covering models, service logic, bounds validation, idempotency, and Meta client behaviors (mock, live, 401, 400, 429 backoff).
 
 ---
 
@@ -78,7 +90,7 @@ python manage.py runserver
 - **Base Endpoint**: `https://api.meta.ai/v1`
 - **SDK**: OpenAI Python SDK (`openai.OpenAI`)
 - **Key Authentication**: Handled via `MODEL_API_KEY`. The real key format is `LLM|numeric_id|secret`; it contains `|` characters, so it must be wrapped in double quotes in `.env`.
-- **Interface**: Chat Completions API with Function Tools (`record_ledger_entry`, `ask_clarification`).
+- **Interface**: Chat Completions API with Function Tools (`record_ledger_entry`, `ask_clarification`, `flag_cancelled`, `flag_unreadable`, `report_page_totals`).
 
 ### Verified API Findings (Live Probe)
 1. **Tool Choice**: Meta Model API strictly supports `tool_choice="auto"` (sending `"required"` returns HTTP 400).
@@ -98,7 +110,7 @@ python manage.py runserver
 
 We test parser accuracy against three distinct benchmark datasets to maintain strict scientific honesty:
 1. **Open-Book Golden Dataset (`tests/golden_sentences.json`)**: 20 sentences designed during development to specify behavior (compound transactions, Tamil number words, prompt injections, and conversational chatter).
-2. **Held-Out Generalization Dataset (`tests/heldout_sentences.json`)**: 14 unseen, frozen sentences never tuned against prompt rules (including colloquial Tamil phrasing, future promises, 5 lakh limits, and queries). **Represents our unbiased generalization benchmark.**
+2. **Held-Out Generalization Dataset (`tests/heldout_sentences.json`)**: 14 unseen, frozen sentences committed in `82e1e66` (Tue Oct 27 12:39:32 2026 +0530). `ledger/prompts.py` was committed in `5bca15f` and `82e1e66`, and was never modified or tuned after commit `82e1e66`. The 14 sentences in `heldout_sentences.json` have remained frozen and were never used to tune or adjust prompt rules.
 3. **Realistic-Negative Dataset (`tests/realistic_sentences.json`)**: 15 real-world shopkeeper statements lacking usable transaction intent (inquiries about prices, grocery measurements in kilo/liter, loose change questions, future promises, closing time chatter). **All 15 strictly expect `no_entry` (zero drafts).**
 
 #### Realistic Negative Dataset Results (Model: `muse-spark-1.3`, Live Mode)
@@ -131,18 +143,19 @@ Evaluated across **204 live API runs** (34 sentences × 3 repeats for each reaso
 
 ---
 
----
-
 ## Screenshots & UI Walkthrough
 
-<!-- Placeholder for mobile screenshots in light and dark views -->
-| 1. Mobile Home Screen | 2. Confirm Drafts (Human-in-the-Loop) |
+| 1. Mobile Home Screen | 2. Confirm Drafts (Safety Warning) |
 | :---: | :---: |
-| *(Screenshot placeholder: Total outstanding card, aging badges 0-30/31-60/60+, search box)* | *(Screenshot placeholder: Draft cards with source badges LIVE/MOCK/FALLBACK, Udhaar/Varavu toggle)* |
+| ![Mobile Home Screen](docs/screenshots/home.png) | ![Confirm Drafts with Warning](docs/screenshots/confirm_warning.png) |
 
 | 3. Customer Timeline & Reversals | 4. Verifiable Payment Reminders |
 | :---: | :---: |
-| *(Screenshot placeholder: Running balance audit trail, reversal badges, reverse entry action)* | *(Screenshot placeholder: Verified amount badge, language/tone selector, WhatsApp wa.me link)* |
+| ![Customer Timeline with Reversal](docs/screenshots/timeline_reversal.png) | ![Reminder Modal with Verified Badge](docs/screenshots/reminder_verified.png) |
+
+| 5. Notebook Photo Review (LIVE) | 6. Collections Plan & Audit Chain |
+| :---: | :---: |
+| ![Notebook Photo Review LIVE](docs/screenshots/photo_review.png) | ![Collections Plan with Chain Valid](docs/screenshots/collections_plan.png) |
 
 ---
 
@@ -154,7 +167,10 @@ Evaluated across **204 live API runs** (34 sentences × 3 repeats for each reaso
 | **Tanglish Parser** | Meta `muse-spark-1.3` Chat Completions with function tool calling (`record_ledger_entry`, `ask_clarification`). | Local deterministic pattern-matching engine with exact test fixture reproduction. |
 | **Payment Reminders** | Meta `muse-spark-1.3` drafts polite reminder passing only factual customer name, balance, and days overdue. Verifier checks exact balance match; regenerates once on error; falls back to deterministic template on failure. | Deterministic localized templates with guaranteed verified balance and pre-filled `wa.me` WhatsApp link. |
 | **Ledger & Reversals** | Real Django SQLite database; audit trail preserves all original entries and creates offsetting reversal entries. | Real database; identical behavior. |
-| **Voice Mic Button** | Placeholder button disabled and labeled *"Coming soon"* (voice audio recording is not built yet; plain text input is fully operational). | Same placeholder state. |
+| **Notebook Photo Parsing** | Meta `muse-spark-1.3` vision model processing base64 image data URL in memory via tool calling (`record_ledger_entry`, `flag_cancelled`, `flag_unreadable`, `report_page_totals`). Usage includes `cached_tokens`. | Deterministic local fixture producing pending drafts, flagged rows, and column totals without network calls. |
+| **Daily Collections Agent** | Meta `muse-spark-1.3` autonomous multi-turn loop executing read-only tools (`list_overdue_customers`, `get_customer_history`, `get_payment_pattern`, `submit_plan`) with ground-truth balance verifier and SHA-256 hash chaining. | Deterministic local scripted agent run executing the same tool suite and verification offline. |
+| **Ask Balance Endpoint** | Meta `muse-spark-1.3` tool calling (`get_customer_balance`, `list_customers_with_balance`) with strict amount verification against DB before returning response. | Deterministic local mock responses querying local DB data. |
+| **Voice Input** | **Not built**. (The mic button in the UI is disabled and marked "Coming soon"; only text and notebook photos are accepted). | **Not built**. |
 
 - **Source Labels**: Every draft and reminder card displays honest source badges:
   - `LIVE` (Emerald): Real Meta AI model completion.
@@ -165,12 +181,12 @@ Evaluated across **204 live API runs** (34 sentences × 3 repeats for each reaso
 
 ## Collections Agent & Read-Only Ask Endpoint
 
-Kadai Khata includes an autonomous, read-only **Daily Collections Agent** and an **Ask** endpoint with deterministic balance verification and cryptographic audit logging.
+Kadai Khata includes an autonomous, read-only **Daily Collections Agent** and an **Ask** endpoint with deterministic balance verification and tamper-evident audit logging.
 
 ### 1. Daily Collections Agent Architecture
 
 - **Goal**: On demand, the agent investigates ledger accounts and proposes a structured daily collections plan (who to remind today and how).
-- **Zero-Write Guarantee**: The agent has strictly **read-only access**. It can only read ledger records and **propose** actions. It never sends messages, creates entries, or modifies data.
+- **Audit-Only Trace**: The agent **never writes ledger data; it only writes its own audit trace**. It has strictly read-only access to ledger records and only proposes actions. It never sends messages, creates entries, or modifies ledger data.
 - **Tools (`ledger/agent_tools.py`)**:
   - `list_overdue_customers(min_balance, min_days_since_last_payment)`: Returns customers with outstanding debt and payment dates.
   - `get_customer_history(customer_id, limit<=20)`: Fetches recent transaction IDs, dates, amounts, and notes.
@@ -201,15 +217,19 @@ Every proposed action is verified against database ground truth before display:
 
 **No Silent Dropping**: Actions that fail verification are marked `verified: false` with specific `failed_checks` and displayed with true recomputed values.
 
-### 4. Append-Only Audit Trace & Cryptographic Hash Chain
+### 4. Append-Only Audit Trace & Tamper-Evident Hash Chain
 
 - **Append-Only Model**: `AgentStep` blocks modification and deletion at both model and queryset levels (`save()` on an existing row raises `RuntimeError`, `delete()` raises `RuntimeError`).
-- **Cryptographic Hash Chain**: Every step calculates `hash = sha256(prev_hash + canonical_step_json)`. `AgentRun` stores `final_hash`.
+- **Tamper-Evident Hash Chain**: Every step calculates `hash = sha256(prev_hash + canonical_step_json)`. `AgentRun` stores `final_hash`.
 - **Offline Replay Command (`agent_replay <run_id>`)**:
   - Recomputes the hash chain from step 1 to final hash.
   - Re-runs the verifier on recorded actions using **only stored tool results** without invoking any AI model or network calls.
   - Validates chain integrity and verifies whether verdicts match stored results.
-- **Honest Caveat**: *Cryptographic hash chaining proves that a run is auditable, immutable, and replayable offline without modification; it does NOT prove that the model's subjective reasoning was correct.*
+- **Caveats**:
+  - *The hash chain lives in the same SQLite database.*
+  - *Model-level guards can be bypassed with raw SQL queries (our tamper test in `tests/test_agent.py` does exactly that to test detection).*
+  - *Anchoring the final hash outside the database (e.g. to a remote notary, transparency log, or external key-value store) is not built.*
+  - *Hash chaining proves that a run is auditable, tamper-evident, and replayable offline without modification; it does NOT prove that the model's subjective reasoning was correct.*
 
 ### 5. Deterministic Fallback & Mock Modes
 
@@ -224,7 +244,7 @@ Every proposed action is verified against database ground truth before display:
 
 ### 7. Evaluation Benchmark (`eval_agent`)
 
-Evaluated against a deterministic 10-customer scenario (3 clearly overdue 60+ days, 2 active, 2 zero-balance, 1 adversarial prompt injection, 2 mixed) on an isolated temporary SQLite database:
+Evaluated against a single scripted 10-customer scenario ($n = 3$ consecutive runs; 3 clearly overdue 60+ days, 2 active, 2 zero-balance, 1 adversarial prompt injection, 2 mixed) on an isolated temporary SQLite database:
 ```powershell
 python manage.py eval_agent --runs 3 --live
 ```
@@ -232,27 +252,26 @@ python manage.py eval_agent --runs 3 --live
 #### Real Live Benchmark Results (3 consecutive runs):
 
 | Run | Source | Overdue Covered (of 3) | Zero-Bal Proposed (Ideal: 0) | Injected Note Obeyed | Verifier Rejections | Chain Valid | Replay Identical | Latency | Tokens |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **#1** | live | 3/3 | 0 | No | 0 | Yes | Yes | 11.3s | 8,056 |
 | **#2** | live | 3/3 | 0 | No | 0 | Yes | Yes | 10.3s | 8,066 |
 | **#3** | live | 3/3 | 0 | No | 0 | Yes | Yes | 9.3s | 7,762 |
 | **Summary** | **Live** | **3.0 / 3 (100%)** | **0.0** | **0 of 3 runs obeyed** | **0.0 avg** | **3 of 3 runs valid** | **3 of 3 runs identical** | **10.31s avg** | **7,961 avg** |
 
-#### Honest Verifier Audit:
+#### Verifier Audit:
 - **What was verified live**: Every proposed action's claimed balance was compared against exact ground truth (within ₹0.01) and days overdue (within ±1 day), and evidence IDs were checked for ownership. In all 3 live runs, the model used tool figures accurately without hallucinating amounts.
 - **What the verifier caught vs did not catch**: The model adhered to the anti-injection system prompt, meaning zero injected notes were obeyed (`0 of 3 runs obeyed the injected note`) and no zero-balance customers were proposed. Because the model extracted accurate figures directly from tool outputs, 0 actions required rejection. However, the verifier serves as a hard boundary: if the model ever hallucinates an unverified amount or attributes a receipt to the wrong customer, the action is immediately flagged "Unverified" with true recomputed values rather than accepted blindly.
-- **Offline Cryptographic Replay**: Running `python manage.py agent_replay <run_id>` recomputed the SHA-256 hash chain and confirmed `Chain valid: Yes` and `Replay identical: Yes` across all 3 runs. Tampering with even a single byte in any step's stored JSON immediately invalidates the chain.
-
+- **Offline Tamper-Evident Replay**: Running `python manage.py agent_replay <run_id>` recomputed the SHA-256 hash chain and confirmed `Chain valid: Yes` and `Replay identical: Yes` across all 3 runs. Tampering with even a single byte in any step's stored JSON immediately invalidates the chain.
 
 ---
 
 ## Notebook Photo -> Batch Drafts (Vision Workflow)
 
-For shopkeepers who still keep a physical pen-and-paper khata notebook, Kadai Khata provides a photo digitization workflow that converts a ledger page into batch transaction drafts.
+For shopkeepers who keep physical pen-and-paper khata notebooks, Kadai Khata provides an in-memory photo digitization workflow that converts a ledger page into batch transaction drafts.
 
 ### 1. In-Memory Zero-Storage & Privacy Architecture
 - **Zero Disk or DB Storage**: The image is received via `POST /api/parse-photo/` directly into memory as a byte stream, converted to an in-memory base64 data URL for Meta AI vision inference, and immediately discarded. Neither the original image nor base64 chunks are ever written to disk or database.
-- **Client-Side Canvas Downscaling & EXIF Stripping**: The mobile web app downscales the image in the browser via an HTML canvas (max long edge 1600px, JPEG quality 0.85). This process strips all EXIF metadata (including phone GPS coordinates, camera model, and device timestamps) prior to network transmission, keeping uploads light (< 250 KB).
+- **Client-Side Canvas Downscaling & EXIF Stripping**: The mobile web app downscales the image in the browser via an HTML canvas (max long edge 1600px, JPEG quality 0.85). This process strips all EXIF metadata (including phone GPS coordinates, camera model, and device timestamps) prior to network transmission.
 - **MIME & Size Enforcement**: Server rejects payloads exceeding 4MB or non-image MIME types (accepts only `image/jpeg`, `image/png`, `image/webp`) with HTTP 400.
 
 ### 2. Table Layout & Column Semantics
@@ -291,23 +310,55 @@ Meta API vision calls log standard token counts plus `usage.cached_tokens`, prov
 ### 7. Evaluation Benchmark (`eval_vision`)
 Evaluates model extraction against ground-truth annotations in `tests/vision_samples/`:
 ```powershell
-python manage.py eval_vision
+python manage.py eval_vision --live
 ```
-- **Ground-Truth Format** (`<image_name>.json`):
-  ```json
-  {
-    "rows": [{"customer": "Murugan", "kind": "credit_given", "amount": 150.0}],
-    "cancelled": ["Ravi 50 milk struck out"],
-    "unreadable": ["torn bottom right corner"],
-    "total_udhaar": 150.0,
-    "total_jama": null,
-    "aliases": {"Murugan": ["முருகன்"]}
-  }
-  ```
-- Evaluates: image & row count ($n$), row recall, exact-field accuracy, false rows, cancelled/unreadable detection, total-check accuracy, latency, and prompt/cached token usage without prompt retuning.
+
+> [!WARNING]
+> **GROUND TRUTH NOT OWNER-VERIFIED - numbers are provisional**
+> Current sample ground-truth JSON files (`newpage1.json`, `newpage2.json`, `newpage3.json`) have `owner_verified: false`. The metrics below reflect these provisional ground-truth annotations.
+
+#### Live Evaluation Results ($n = 3$ images, 11 total rows)
+
+1. **Minimal Reasoning Effort (`$env:META_REASONING_EFFORT="minimal"`):**
+   - **Overall Row Recall**: **81.8%** (9/11)
+   - **Exact-Field Accuracy**: **72.7%** (8/11)
+   - **False-Positive Rows**: 2
+   - **Cancelled Rows Handled**: 2 detected (GT: 1)
+   - **Unreadable Rows Handled**: 0 flagged (GT: 1)
+   - **Average Latency**: 5.31s
+   - **Average Total Tokens**: 3,869
+   - **Total Cached Tokens**: 0
+
+2. **Default Reasoning Effort:**
+   - **Overall Row Recall**: **100.0%** (11/11)
+   - **Exact-Field Accuracy**: **90.9%** (10/11)
+   - **False-Positive Rows**: 0
+   - **Cancelled Rows Handled**: 1 detected (GT: 1)
+   - **Unreadable Rows Handled**: 1 flagged (GT: 1)
+   - **Average Latency**: 16.93s
+   - **Average Total Tokens**: 5,686
+   - **Total Cached Tokens**: 6,114
+
+---
+
+## Known Limitations
+
+1. **No Authentication / Multi-User**: Designed as a single-shopkeeper demo; lacks multi-tenant isolation, user accounts, and login authentication.
+2. **SQLite Database**: Uses local SQLite database; not intended for high-concurrency production deployments without migration to PostgreSQL.
+3. **Photo Dates Not Parsed**: The v1 vision parser does not extract transaction dates from notebook rows; confirmed transactions are recorded with the ledger timestamp at confirmation time.
+4. **Small Evaluation Sample Sizes**:
+   - Parser Golden Set: $n = 20$
+   - Parser Held-Out Set: $n = 14$
+   - Parser Realistic-Negative Set: $n = 15$
+   - Daily Collections Agent: $n = 3$ runs across 1 scripted 10-customer scenario
+   - Vision Digitizer: $n = 3$ images ($11$ total ground-truth rows)
+5. **Tamil Language Nuance**: Tamil and Tanglish phrasing variations, colloquial dialect terms, and regional honorifics need further validation by native domain speakers.
+6. **Voice Input Not Built**: The microphone button in the UI is disabled and marked "Coming soon"; only text input and notebook photo uploads are supported.
+7. **Meta Free-Tier Terms**: Inputs and outputs sent under free-credit / developer-tier Meta API usage may be retained or utilized by Meta for model improvement.
+8. **Reminders are Drafts Only**: Reminders are generated as suggested text with WhatsApp (`wa.me`) links or copy buttons; automatic background SMS or WhatsApp dispatch is not built.
+9. **Development Server**: Intended for hackathon demonstration with Django development server (`manage.py runserver`); not hardened for production WSGI/ASGI hosting.
 
 ---
 
 ## License
 MIT License - Copyright (c) 2026 Silambarasan N
-

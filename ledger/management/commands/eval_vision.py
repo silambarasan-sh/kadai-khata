@@ -47,6 +47,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         mode = "live" if options["live"] else getattr(settings, "META_MODE", "mock")
+        settings.META_REASONING_EFFORT = os.getenv("META_REASONING_EFFORT", "").strip() or None
         target_db = options.get("db", "").strip()
         samples_dir = Path(options["dir"]).resolve()
 
@@ -126,6 +127,20 @@ class Command(BaseCommand):
                 f"=== Evaluating Notebook Photo Digitizer ({len(matched_pairs)} samples, mode: {mode}) ==="
             )
         )
+
+        # Check for unverified ground truth files
+        any_unverified = False
+        for _, jp in matched_pairs:
+            try:
+                with open(jp, "r", encoding="utf-8") as f:
+                    if not json.load(f).get("owner_verified", False):
+                        any_unverified = True
+                        break
+            except Exception:
+                pass
+
+        if any_unverified:
+            self.stdout.write(self.style.WARNING("GROUND TRUTH NOT OWNER-VERIFIED - numbers are provisional"))
 
         results = []
 
@@ -291,3 +306,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"Average Latency:               {avg_lat:.2f}s"))
         self.stdout.write(self.style.SUCCESS(f"Average Total Tokens:          {avg_tok:.0f}"))
         self.stdout.write(self.style.SUCCESS(f"Total Cached Tokens:           {total_cached}"))
+        if any_unverified:
+            self.stdout.write(self.style.WARNING("GROUND TRUTH NOT OWNER-VERIFIED - numbers are provisional"))
+
