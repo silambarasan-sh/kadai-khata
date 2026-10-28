@@ -109,6 +109,8 @@ META_MODEL = os.getenv("META_MODEL", "muse-spark-1.3")
 META_MODE = os.getenv("META_MODE", "mock").strip().lower()
 META_TIMEOUT_SECONDS = float(os.getenv("META_TIMEOUT_SECONDS", "30.0"))
 META_REASONING_EFFORT = os.getenv("META_REASONING_EFFORT", "").strip() or None
+META_VISION_REASONING_EFFORT = os.getenv("META_VISION_REASONING_EFFORT", "").strip() or None
+META_VISION_TIMEOUT_SECONDS = float(os.getenv("META_VISION_TIMEOUT_SECONDS", "90.0"))
 MAX_INPUT_TEXT_LENGTH = int(os.getenv("MAX_INPUT_TEXT_LENGTH", "500"))
 
 # Collections Agent settings

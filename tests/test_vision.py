@@ -337,3 +337,78 @@ def test_injection_text_in_transcription_treated_as_data():
     assert "IGNORE ALL RULES" in d.note
     # Ledger remains intact
     assert LedgerEntry.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_parse_photo_backend_timeout_handling(client):
+    """Verify backend timeout handling returns clear timeout message."""
+    img_bytes = _create_dummy_jpeg_bytes()
+    mock_client = MagicMock()
+    mock_client.chat_completion.side_effect = TimeoutError("Request timed out after 90 seconds")
+
+    file = SimpleUploadedFile("notebook.jpg", img_bytes, content_type="image/jpeg")
+
+    with patch("ledger.photo_parser.MetaClient", return_value=mock_client):
+        resp = client.post("/api/parse-photo/", {"image": file, "mode": "live"}, format="multipart")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "error"
+    assert "timed out" in data["error"].lower()
+
+
+@pytest.mark.django_db
+def test_photo_drafts_title_case_latin_and_preserve_tamil():
+    """Verify all-lowercase Latin names are title-cased, Tamil names kept verbatim, and raw text in source_text."""
+    img_bytes = _create_dummy_jpeg_bytes()
+
+    mock_client = MagicMock()
+    mock_calls = [
+        {
+            "id": "c1",
+            "type": "function",
+            "function": {
+                "name": "record_ledger_entry",
+                "arguments": json.dumps({
+                    "customer_name": "mani",
+                    "kind": "payment_received",
+                    "amount": 500.0,
+                    "row_hint": "Row 2: mani",
+                }),
+            },
+        },
+        {
+            "id": "c2",
+            "type": "function",
+            "function": {
+                "name": "record_ledger_entry",
+                "arguments": json.dumps({
+                    "customer_name": "முருகன்",
+                    "name_latin": "murugan",
+                    "kind": "credit_given",
+                    "amount": 450.0,
+                    "row_hint": "Row 1: முருகன்",
+                }),
+            },
+        },
+    ]
+
+    mock_client.chat_completion.return_value = MetaResult(
+        payload={"role": "assistant", "tool_calls": mock_calls},
+        source="live",
+        model="muse-spark-1.3",
+        usage_tokens={"total_tokens": 100},
+        latency_ms=10.0,
+    )
+
+    with patch("ledger.photo_parser.MetaClient", return_value=mock_client):
+        res = parse_photo_in_memory(img_bytes, mime_type="image/jpeg", mode="live")
+
+    assert len(res.drafts) == 2
+    assert res.drafts[0].customer_name == "Mani"
+    assert "mani" in res.drafts[0].source_text
+
+    assert res.drafts[1].customer_name == "முருகன்"
+    assert res.drafts[1].name_latin == "Murugan"
+    assert "முருகன்" in res.drafts[1].source_text
+

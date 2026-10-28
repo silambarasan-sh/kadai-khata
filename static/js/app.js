@@ -239,6 +239,7 @@
         sendBtn: document.getElementById("send-btn"),
         inputStatusBar: document.getElementById("input-status-bar"),
         inputStatusText: document.getElementById("input-status-text"),
+        photoCancelBtn: document.getElementById("photo-cancel-btn"),
         // Reminder Modal
         reminderModal: document.getElementById("reminder-modal"),
         closeReminderModalBtn: document.getElementById("close-reminder-modal-btn"),
@@ -690,8 +691,25 @@
 
         isParsing = true;
         elements.inputStatusBar.style.display = "flex";
-        elements.inputStatusText.textContent = t("uploadingPhoto");
+        if (elements.photoCancelBtn) {
+            elements.photoCancelBtn.style.display = "inline-block";
+        }
         elements.sendBtn.disabled = true;
+
+        let elapsedSeconds = 0;
+        elements.inputStatusText.textContent = `Reading the page... can take up to 30 seconds (${elapsedSeconds}s)`;
+        const photoTimer = setInterval(() => {
+            elapsedSeconds++;
+            elements.inputStatusText.textContent = `Reading the page... can take up to 30 seconds (${elapsedSeconds}s)`;
+        }, 1000);
+
+        const abortController = new AbortController();
+        const onCancelClick = () => {
+            abortController.abort();
+        };
+        if (elements.photoCancelBtn) {
+            elements.photoCancelBtn.addEventListener("click", onCancelClick, { once: true });
+        }
 
         try {
             const scaledBlob = await downscaleImageToBlob(file, 1600);
@@ -701,6 +719,7 @@
             const resp = await fetch("/api/parse-photo/", {
                 method: "POST",
                 body: formData,
+                signal: abortController.signal,
             });
             const data = await resp.json();
             if (!resp.ok || data.status === "error") {
@@ -714,10 +733,19 @@
             renderDraftCards(currentDrafts);
             showView("confirm");
         } catch (err) {
-            showToast(err.message, "error");
+            if (err.name === "AbortError") {
+                showToast("Photo reading was cancelled.", "info");
+            } else {
+                showToast(err.message, "error");
+            }
         } finally {
+            clearInterval(photoTimer);
             isParsing = false;
             elements.inputStatusBar.style.display = "none";
+            if (elements.photoCancelBtn) {
+                elements.photoCancelBtn.style.display = "none";
+                elements.photoCancelBtn.removeEventListener("click", onCancelClick);
+            }
             elements.sendBtn.disabled = false;
             if (elements.photoFileInput) elements.photoFileInput.value = "";
         }

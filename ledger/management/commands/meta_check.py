@@ -9,6 +9,36 @@ from django.core.management.base import BaseCommand
 from ledger.meta_client import MetaClient, MetaClientError
 
 
+def get_api_key_status(api_key: str) -> str:
+    """Return status string for MODEL_API_KEY:
+    - 'not set': empty or whitespace
+    - 'placeholder (not a real key)': matches .env.example placeholder
+    - 'Configured (hidden)': real-looking key
+    """
+    key = (api_key or "").strip()
+    if not key:
+        return "not set"
+
+    placeholders = {
+        "LLM|your_numeric_id|your_secret",
+        "your_numeric_id",
+        "your_secret",
+        "your_meta_api_key_here",
+        "your_api_key_here",
+        "placeholder",
+    }
+    if key in placeholders or "your_numeric_id" in key or "your_secret" in key:
+        return "placeholder (not a real key)"
+
+    parts = key.split("|")
+    if len(parts) == 3 and parts[0] == "LLM" and parts[1].isdigit() and len(parts[2]) > 5:
+        return "Configured (hidden)"
+    if len(key) >= 15 and not any(p in key.lower() for p in ["placeholder", "example", "your_"]):
+        return "Configured (hidden)"
+
+    return "placeholder (not a real key)"
+
+
 class Command(BaseCommand):
     help = "Send a minimal test request to Meta Model API (or mock) to verify connectivity."
 
@@ -28,7 +58,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Configured Mode   : {mode.upper()}")
         self.stdout.write(f"Target Model      : {model}")
         self.stdout.write(f"Base Endpoint     : {base_url}")
-        self.stdout.write("API Key Status    : " + ("Configured (hidden)" if getattr(settings, "MODEL_API_KEY", "") else "MISSING / EMPTY"))
+        self.stdout.write(f"API Key Status    : {get_api_key_status(getattr(settings, 'MODEL_API_KEY', ''))}")
         self.stdout.write("------------------------------------------")
 
         client = MetaClient(mode=mode)

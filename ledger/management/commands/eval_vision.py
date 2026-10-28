@@ -44,10 +44,14 @@ class Command(BaseCommand):
         parser.add_argument("--live", action="store_true", help="Force live Meta API mode")
         parser.add_argument("--db", type=str, default="", help="Optional SQLite database path")
         parser.add_argument("--dir", type=str, default="tests/vision_samples", help="Directory containing sample images and ground truth JSONs")
+        parser.add_argument("--effort", type=str, default=None, help="Vision reasoning effort override (e.g. minimal or empty for default)")
 
     def handle(self, *args, **options):
         mode = "live" if options["live"] else getattr(settings, "META_MODE", "mock")
-        settings.META_REASONING_EFFORT = os.getenv("META_REASONING_EFFORT", "").strip() or None
+        if options.get("effort") is not None:
+            settings.META_VISION_REASONING_EFFORT = options["effort"].strip() or None
+        else:
+            settings.META_VISION_REASONING_EFFORT = os.getenv("META_VISION_REASONING_EFFORT", "").strip() or None
         target_db = options.get("db", "").strip()
         samples_dir = Path(options["dir"]).resolve()
 

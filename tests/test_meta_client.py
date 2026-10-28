@@ -174,3 +174,25 @@ def test_meta_check_command_mock_mode(monkeypatch):
     assert "MOCK" in output
     assert "muse-spark-1.3" in output
     assert "[STATUS] Meta API Check Succeeded!" in output
+
+
+def test_meta_check_api_key_status_reporting(monkeypatch):
+    from django.conf import settings
+    from ledger.management.commands.meta_check import get_api_key_status
+
+    # 1. Empty / whitespace -> "not set"
+    assert get_api_key_status("") == "not set"
+    assert get_api_key_status("   ") == "not set"
+
+    # 2. .env.example placeholder -> "placeholder (not a real key)"
+    assert get_api_key_status("LLM|your_numeric_id|your_secret") == "placeholder (not a real key)"
+
+    # 3. Real-looking key format -> "Configured (hidden)"
+    assert get_api_key_status("LLM|12345678|abcdef1234567890") == "Configured (hidden)"
+
+    # Verify command output uses the status
+    monkeypatch.setattr(settings, "MODEL_API_KEY", "LLM|your_numeric_id|your_secret")
+    out = io.StringIO()
+    call_command("meta_check", stdout=out)
+    assert "API Key Status    : placeholder (not a real key)" in out.getvalue()
+

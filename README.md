@@ -110,7 +110,9 @@ python manage.py runserver
 
 We test parser accuracy against three distinct benchmark datasets to maintain strict scientific honesty:
 1. **Open-Book Golden Dataset (`tests/golden_sentences.json`)**: 20 sentences designed during development to specify behavior (compound transactions, Tamil number words, prompt injections, and conversational chatter).
-2. **Held-Out Generalization Dataset (`tests/heldout_sentences.json`)**: 14 unseen, frozen sentences committed in `82e1e66` (Tue Oct 27 12:39:32 2026 +0530). `ledger/prompts.py` was committed in `5bca15f` and `82e1e66`, and was never modified or tuned after commit `82e1e66`. The 14 sentences in `heldout_sentences.json` have remained frozen and were never used to tune or adjust prompt rules.
+2. **Held-Out Generalization Dataset (`tests/heldout_sentences.json`)**: 14 frozen sentences committed in `82e1e66` (Tue Oct 27 12:39:32 2026 +0530).
+   - *Honest Disclosure*: The held-out set was visible to the coding agent in the same session in which `prompts.py` was restructured (commit `82e1e66`). The prompt was not changed after the first live run; contamination cannot be fully ruled out.
+   - *Verbatim Audit*: An exact grep search across `ledger/prompts.py` for distinctive vocabulary fragments from the held-out sentences (`"nooththi"`, `"aimbadhu"`, `"lakh"`, `"evlo baaki"`, `"saamaan"`, `"kodutheen"`, `"vandhuchu"`, `"mark all customers"`) yielded **0 verbatim hits**.
 3. **Realistic-Negative Dataset (`tests/realistic_sentences.json`)**: 15 real-world shopkeeper statements lacking usable transaction intent (inquiries about prices, grocery measurements in kilo/liter, loose change questions, future promises, closing time chatter). **All 15 strictly expect `no_entry` (zero drafts).**
 
 #### Realistic Negative Dataset Results (Model: `muse-spark-1.3`, Live Mode)
@@ -285,8 +287,9 @@ The vision system prompt is configured for standard Tamil Nadu shopkeeper khata 
 
 ### 3. Tamil Script Preservation & Latin Transliteration (`name_latin`)
 - Names written in Tamil script (e.g. *"முருகன்"*, *"கார்த்திக்"*) are preserved verbatim in `customer_name`.
-- The model suggests an English/Latin phonetic transliteration in `name_latin` (e.g. *"Murugan"*, *"Karthik"*).
+- The model suggests an English/Latin phonetic transliteration in `name_latin` (e.g. *"Murugan"*, *"Karthik"*). All-lowercase Latin names are automatically title-cased (e.g. `mani` -> `Mani`).
 - The review UI displays both names with an interactive toggle chip, allowing the shopkeeper to choose whether to save the Tamil or Latin spelling to their customer database.
+- **`source_text` Semantics**: In photo drafts, `source_text` is stored as a structured echo of the extracted row (e.g. `"[Row 1: Murugan] Murugan | Rice 5kg | credit_given ₹450.00"`), capturing the raw customer string and extracted row hint, rather than raw unsegmented OCR text.
 
 ### 4. Cancellation & Illegibility Protection
 - **Struck-Out / Scribbled Rows**: Rows with lines drawn through them, tildes, or cancellation scribbles are captured via the `flag_cancelled(row_hint)` tool and are **never** converted into transaction drafts.
@@ -298,46 +301,42 @@ Physical ledger pages frequently conclude with column totals written at the bott
 - **Per-Column Comparison**:
   - `sum(drafted credit_given)` vs written `total_udhaar`
   - `sum(drafted payment_received)` vs written `total_jama`
-- **Safety Gate**:
+- **Safety Gate & Ambiguity Finding**:
   - If a mismatch occurs, a warning banner appears detailing both computed and written totals.
   - The banner explicitly cites any cancelled or unreadable rows that might account for the discrepancy.
   - **"Confirm all" remains disabled** until the shopkeeper checks the acknowledgement box: *"I understand the column totals don't match (e.g. struck-out or unreadable rows) and want to proceed."*
-  - Confirming single verified cards remains accessible.
+  - **Critical Safety Insight**: On `newpage2.jpeg`, ambiguous handwriting caused both the Rani payment row and the bottom total jama to look like 260 instead of the owner-intended 200. Because the model read both the row and the column total as 260 consistently, the automated total check showed `Pass`! A misread that is internally consistent between a row and its page total cannot be detected by mathematical total checking. This illustrates why the human-in-the-loop confirmation screen remains the indispensable safety net for real kirana stores.
 
-### 6. Caching & Token Logging
-Meta API vision calls log standard token counts plus `usage.cached_tokens`, providing transparency into prompt caching benefits across multiple ledger photo requests.
+### 6. Vision Configuration & Caching
+- **Independent Vision Settings**:
+  - `META_VISION_REASONING_EFFORT`: Configures reasoning effort specifically for vision completions, independent of `META_REASONING_EFFORT`. Defaults to empty string (model default).
+  - `META_VISION_TIMEOUT_SECONDS`: Vision timeout set to `90.0` seconds (default) to comfortably handle complex multi-row pages (e.g. `newpage2` taking ~20-30s).
+- **Client Processing UI**: While processing, the mobile UI displays *"Reading the page... can take up to 30 seconds (Xs)"* with an active elapsed seconds counter, a user **Cancel** button (powered by `AbortController`), and clear user-facing timeout handling.
+- **Token Logging & Prompt Caching**: Vision requests log standard token metrics plus `usage.cached_tokens`, capturing prompt caching across notebook page scans.
 
 ### 7. Evaluation Benchmark (`eval_vision`)
-Evaluates model extraction against ground-truth annotations in `tests/vision_samples/`:
+Evaluates model extraction against owner-verified ground truth in `tests/vision_samples/`:
 ```powershell
 python manage.py eval_vision --live
 ```
 
-> [!WARNING]
-> **GROUND TRUTH NOT OWNER-VERIFIED - numbers are provisional**
-> Current sample ground-truth JSON files (`newpage1.json`, `newpage2.json`, `newpage3.json`) have `owner_verified: false`. The metrics below reflect these provisional ground-truth annotations.
+All 3 samples (`newpage1.json`, `newpage2.json`, `newpage3.json`) are owner-verified (`owner_verified: true`, following owner clarification that on `newpage2` Rani payment and page total jama are ₹200).
 
-#### Live Evaluation Results ($n = 3$ images, 11 total rows)
+#### Live Benchmark Results ($n = 3$ images, 11 total ground-truth rows)
 
-1. **Minimal Reasoning Effort (`$env:META_REASONING_EFFORT="minimal"`):**
-   - **Overall Row Recall**: **81.8%** (9/11)
-   - **Exact-Field Accuracy**: **72.7%** (8/11)
-   - **False-Positive Rows**: 2
-   - **Cancelled Rows Handled**: 2 detected (GT: 1)
-   - **Unreadable Rows Handled**: 0 flagged (GT: 1)
-   - **Average Latency**: 5.31s
-   - **Average Total Tokens**: 3,869
-   - **Total Cached Tokens**: 0
+| Metric | Default Effort (Run A) | Default Effort (Run B) | Minimal Effort (`minimal`) |
+|---|---|---|---|
+| **Overall Row Recall** | **90.9%** (10/11) | **100.0%** (11/11) | **90.9%** (10/11) |
+| **Exact-Field Accuracy** | **81.8%** (9/11) | **90.9%** (10/11) | **90.9%** (10/11) |
+| **Total False-Positive Rows** | 1 | 0 | 1 |
+| **Cancelled Rows Handled** | 1 / 1 detected | 2 / 1 detected | 1 / 1 detected |
+| **Unreadable Rows Handled** | 1 / 1 flagged | 0 / 1 flagged | 1 / 1 flagged |
+| **Average Latency** | 13.58s | 11.12s | **5.39s** |
+| **Average Total Tokens** | 5,414 | 5,172 | **4,014** |
+| **Total Cached Tokens** | 0 | 4,578 | 0 |
 
-2. **Default Reasoning Effort:**
-   - **Overall Row Recall**: **100.0%** (11/11)
-   - **Exact-Field Accuracy**: **90.9%** (10/11)
-   - **False-Positive Rows**: 0
-   - **Cancelled Rows Handled**: 1 detected (GT: 1)
-   - **Unreadable Rows Handled**: 1 flagged (GT: 1)
-   - **Average Latency**: 16.93s
-   - **Average Total Tokens**: 5,686
-   - **Total Cached Tokens**: 6,114
+- **Rani Amount Misread on newpage2**: In both default effort runs, the model extracted Rani's payment as ₹260 (matching what looks like 260 on paper), whereas the owner intended ₹200. In Run A this gave 9/11 exact match, and in Run B 10/11 exact match. This is documented honestly as a genuine model handwriting misread.
+- **Recommended Effort Setting**: **Default reasoning effort (`META_VISION_REASONING_EFFORT=""`)** is recommended. Although minimal reasoning effort yields faster inference (~5.4s vs ~11-13s), default reasoning effort achieves superior row recall (up to 100% recall with 0 false rows in Run B, vs false-positive rows under minimal effort). Vision requests require the full reasoning capacity to reliably disambiguate noisy handwriting and columns.
 
 ---
 

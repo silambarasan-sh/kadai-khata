@@ -274,6 +274,19 @@ def _get_mock_tool_calls() -> List[Dict[str, Any]]:
     ]
 
 
+def format_photo_customer_name(name: str) -> str:
+    """Title-case all-lowercase Latin names (e.g. 'mani' -> 'Mani').
+    Keep Tamil names verbatim."""
+    if not name:
+        return name
+    has_tamil = any("\u0b80" <= ch <= "\u0bff" for ch in name)
+    if has_tamil:
+        return name
+    if name.islower():
+        return name.title()
+    return name
+
+
 def parse_photo_in_memory(
     image_bytes: bytes,
     mime_type: str,
@@ -327,13 +340,17 @@ def parse_photo_in_memory(
             },
         ]
 
+        vision_timeout = getattr(settings, "META_VISION_TIMEOUT_SECONDS", 90.0)
+        vision_effort = getattr(settings, "META_VISION_REASONING_EFFORT", None)
+
         try:
-            client = MetaClient(mode="live")
+            client = MetaClient(mode="live", timeout=vision_timeout)
             res: MetaResult = client.chat_completion(
                 messages=messages,
                 tools=PHOTO_TOOL_SCHEMAS,
                 tool_choice="auto",
                 temperature=0.0,
+                reasoning_effort=vision_effort,
             )
             tool_calls = res.payload.get("tool_calls") or []
             usage_tokens = res.usage_tokens or {}
@@ -344,6 +361,11 @@ def parse_photo_in_memory(
         except Exception as exc:
             logger.error("Live photo parsing failed: %s", exc)
             latency_ms = (time.perf_counter() - start_time) * 1000.0
+            err_str = str(exc)
+            if "timed out" in err_str.lower() or "timeout" in err_str.lower():
+                err_msg = f"Photo parsing timed out after {vision_timeout:.0f}s. Please try again or take a clearer photo."
+            else:
+                err_msg = f"Photo extraction failed: {err_str}. Please check image quality or enter manually."
             return PhotoParseResult(
                 batch_id=batch_id,
                 drafts=[],
@@ -355,7 +377,7 @@ def parse_photo_in_memory(
                 source_label=SourceLabel.FALLBACK,
                 latency_ms=round(latency_ms, 2),
                 usage_tokens=usage_tokens,
-                error=f"Photo extraction failed: {str(exc)}. Please check image quality or enter manually.",
+                error=err_msg,
             )
 
     # 2. Process tool calls
@@ -397,7 +419,10 @@ def parse_photo_in_memory(
 
             # Customer name normalization & matching
             clean_cust, only_honorific = normalize_customer_name(raw_cust)
-            final_cust_name = clean_cust if clean_cust else raw_cust
+            base_cust = clean_cust if clean_cust else raw_cust
+            final_cust_name = format_photo_customer_name(base_cust)
+            if name_latin:
+                name_latin = format_photo_customer_name(name_latin)
             if only_honorific:
                 warnings.append(f"Customer name '{raw_cust}' appears to only be an honorific.")
 
