@@ -17,6 +17,9 @@
                     <h1 id="app-title" class="brand-title" data-i18n="appTitle">Kadai Khata</h1>
                 </div>
                 <div class="header-actions">
+                    <button id="how-it-works-btn" class="how-it-works-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="View technical architecture">
+                        <span aria-hidden="true">&#9432;</span> <span data-i18n="howItWorks">How it works</span>
+                    </button>
                     <button id="lang-toggle-btn" class="lang-toggle-btn" type="button" aria-label="Toggle Language">
                         <span id="lang-current-label">தமிழ்</span>
                     </button>
@@ -33,6 +36,13 @@
                     <span data-i18n="tabCollections">Collections</span>
                 </button>
             </nav>
+            {% if DEMO_MODE %}
+            <!-- Demo Warning Banner -->
+            <div id="demo-mode-banner" class="demo-mode-banner" role="status" aria-label="Demo environment announcement">
+                <span class="demo-banner-icon" aria-hidden="true">&#9888;</span>
+                <span class="demo-banner-text">Public demo with fictional data. Do not enter real customer details. Data may be reset.</span>
+            </div>
+            {% endif %}
         </header>
 
         <!-- Main Content Area -->
@@ -307,6 +317,22 @@
                 <button id="photo-cancel-btn" class="status-cancel-btn" type="button" style="display: none;" aria-label="Cancel reading photo">Cancel</button>
             </div>
 
+            <!-- "Try these" chips & sample notebook button for judge evaluation -->
+            <div class="sample-chips-row">
+                <div class="chips-label-group">
+                    <span class="chips-title" data-i18n="tryThese">Try these:</span>
+                    <button id="try-sample-notebook-btn" class="chip-sample-notebook" type="button" title="Upload tests/vision_samples/newpage3.jpeg">
+                        <span aria-hidden="true">&#128220;</span> <span data-i18n="trySampleNotebook">Try a sample notebook page</span>
+                    </button>
+                </div>
+                <div class="chips-list">
+                    <button type="button" class="sample-chip" data-sentence="Ravi 450 udhaar paal packet bread">Ravi 450 udhaar paal packet bread</button>
+                    <button type="button" class="sample-chip" data-sentence="Murugan phonpe-la 300 kuduthaar">Murugan phonpe-la 300 kuduthaar</button>
+                    <button type="button" class="sample-chip" data-sentence="Selvam 1200 rooba arisi moottai udhaar book pannunga">Selvam 1200 rooba arisi moottai udhaar book pannunga</button>
+                    <button type="button" class="sample-chip" data-sentence="Priya 200 cash kuduthaanga balance baaki evlo">Priya 200 cash kuduthaanga balance baaki evlo</button>
+                </div>
+            </div>
+
             <form id="transcription-form" class="input-form" onsubmit="return false;">
                 <div class="input-controls-row">
                     <!-- Disabled Mic Button with "coming soon" label -->
@@ -427,6 +453,56 @@
                         </div>
                         <p class="reminder-notice" data-i18n="reminderPrivacyNotice">The app never sends anything itself. You review and send manually.</p>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Judge Reference Modal: How it works -->
+        <div id="how-it-works-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="how-it-works-title">
+            <div class="modal-card how-it-works-card">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="how-it-works-title" class="modal-title">&#9881; How Kadai Khata Works</h3>
+                        <p class="modal-subtitle">Technical Judge Reference &mdash; Live AI vs Code-Enforced Safety</p>
+                    </div>
+                    <button id="close-how-it-works-btn" class="modal-close-btn" type="button" aria-label="Close modal">&times;</button>
+                </div>
+                <div class="modal-body modal-scrollable">
+                    <section class="modal-tech-section">
+                        <h4 class="tech-section-title tech-title-ai">&#129302; Live Meta AI Features Used</h4>
+                        <div class="tech-feature-item">
+                            <strong>1. Single-Turn Tool Calling:</strong>
+                            <p>Translates colloquial Tanglish speech/text into typed <code>record_ledger_entry</code> or <code>ask_clarification</code> tool calls.</p>
+                        </div>
+                        <div class="tech-feature-item">
+                            <strong>2. Parallel Tool Calls:</strong>
+                            <p>Extracts multiple customer transactions simultaneously from compound sentences (e.g., credit given plus payment received in one utterance).</p>
+                        </div>
+                        <div class="tech-feature-item">
+                            <strong>3. Multimodal Vision:</strong>
+                            <p>Scans handwritten Tamil physical notebook pages directly into structured draft rows in-memory. Zero image bytes stored on disk or DB.</p>
+                        </div>
+                        <div class="tech-feature-item">
+                            <strong>4. Autonomous Agent Loop:</strong>
+                            <p>Daily Collections Agent runs an autonomous multi-turn ReAct reasoning loop calling read-only ledger tools to review debt aging, payment habits, and propose polite collection actions.</p>
+                        </div>
+                    </section>
+
+                    <section class="modal-tech-section">
+                        <h4 class="tech-section-title tech-title-code">&#128274; What is NOT AI (Strict Code Boundaries)</h4>
+                        <div class="tech-feature-item">
+                            <strong>1. Balances &amp; Arithmetic:</strong>
+                            <p>Customer balances, aging buckets (0-30, 31-60, 60+), and running totals are computed 100% deterministically in Python/SQL. The LLM is never permitted to calculate balances.</p>
+                        </div>
+                        <div class="tech-feature-item">
+                            <strong>2. Balance Verifier:</strong>
+                            <p>All reminder messages and ask answers are strictly verified against ground-truth database balances before display. Any hallucinated numbers immediately trigger fallback to verified deterministic templates.</p>
+                        </div>
+                        <div class="tech-feature-item">
+                            <strong>3. SHA-256 Cryptographic Hash Chain:</strong>
+                            <p>Every single agent execution step, tool input, tool output, and final plan is cryptographically linked with previous-step SHA-256 hashes, producing an immutable, tamper-evident audit trail replayable offline.</p>
+                        </div>
+                    </section>
                 </div>
             </div>
         </div>

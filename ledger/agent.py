@@ -342,6 +342,10 @@ class AgentRunner:
         inc_tool_call,
     ) -> Dict[str, Any]:
         """Live agent execution loop with Meta model."""
+        from ledger.demo_guards import is_daily_budget_exceeded
+        if is_daily_budget_exceeded():
+            raise RuntimeError("Demo budget reached - offline mode. Daily collections agent run is temporarily paused.")
+
         client = MetaClient(mode="live", timeout=self.timeout_sec)
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},

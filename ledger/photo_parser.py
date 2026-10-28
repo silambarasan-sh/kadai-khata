@@ -340,6 +340,22 @@ def parse_photo_in_memory(
             },
         ]
 
+        from ledger.demo_guards import is_daily_budget_exceeded
+        if is_daily_budget_exceeded():
+            return PhotoParseResult(
+                batch_id=batch_id,
+                drafts=[],
+                cancelled_rows=[],
+                unreadable_rows=[],
+                page_totals={},
+                calculated_totals={},
+                total_check={"has_mismatch": False, "difference": 0.0, "details": "Demo budget reached"},
+                source_label="fallback",
+                latency_ms=0.0,
+                usage_tokens={},
+                error="Demo budget reached - offline mode. Notebook photo scanning is temporarily paused.",
+            )
+
         vision_timeout = getattr(settings, "META_VISION_TIMEOUT_SECONDS", 90.0)
         vision_effort = getattr(settings, "META_VISION_REASONING_EFFORT", None)
 

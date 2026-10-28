@@ -1,0 +1,4 @@
+s1: “Ravi-ku aanju nooru rooba udhaar kuduthen”
+s2: “Mani irunooru thirumba kuduthaan, Selvi-ku moonu nooru udhaar”
+s3: "முருகன் நானூறு ரூபாய் கடன் வாங்கினார்"
+s4: “Bala aayiram rooba gpay pannitaanga”

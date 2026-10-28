@@ -170,6 +170,13 @@ def answer_question(question: str, mode: Optional[str] = None) -> Dict[str, Any]
             }
 
 
+    from ledger.demo_guards import is_daily_budget_exceeded
+    if is_daily_budget_exceeded():
+        res = _deterministic_ask_fallback(question)
+        res["source_label"] = "fallback"
+        res["answer"] = f"[Demo budget reached - offline mode] {res['answer']}"
+        return res
+
     # Live Mode
     client = MetaClient(mode="live")
     system_msg = {

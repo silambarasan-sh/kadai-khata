@@ -387,6 +387,8 @@ def parse_text(text: str) -> ParseResult:
     latency_ms = 0.0
     usage_tokens: Dict[str, int] = {}
 
+    from ledger.demo_guards import is_daily_budget_exceeded
+
     if meta_mode == "mock":
         # Deterministic mock parsing
         specs, clar = rule_based_fallback_parser(clean_text, source_label="mock")
@@ -394,6 +396,15 @@ def parse_text(text: str) -> ParseResult:
         clarification = clar
         source_label = "mock"
         latency_ms = 2.5
+        usage_tokens = {"prompt_tokens": len(clean_text.split()), "completion_tokens": 15, "total_tokens": len(clean_text.split()) + 15}
+
+    elif is_daily_budget_exceeded():
+        # Demo budget reached: do NOT call Meta, use offline fallback parser
+        specs, clar = rule_based_fallback_parser(clean_text, source_label="fallback")
+        draft_specs = specs
+        clarification = "Demo budget reached - offline mode"
+        source_label = "fallback"
+        latency_ms = 1.0
         usage_tokens = {"prompt_tokens": len(clean_text.split()), "completion_tokens": 15, "total_tokens": len(clean_text.split()) + 15}
 
     else:

@@ -31,8 +31,13 @@ from .services import (
 
 
 def _json_error(message: str, status: int = 400) -> JsonResponse:
-    """Return a clean JSON error response without internal stack traces."""
-    return JsonResponse({"error": message, "status": "error"}, status=status)
+    """Return a clean JSON error response without internal stack traces or leaked secrets."""
+    from django.conf import settings
+    clean_msg = str(message)
+    for secret in (getattr(settings, "MODEL_API_KEY", ""), getattr(settings, "SECRET_KEY", "")):
+        if secret and len(secret) > 4:
+            clean_msg = clean_msg.replace(secret, "[REDACTED]")
+    return JsonResponse({"error": clean_msg, "status": "error"}, status=status)
 
 
 def _serialize_draft(draft: DraftEntry) -> dict:
@@ -67,6 +72,11 @@ def index(request: HttpRequest):
 @require_POST
 def api_parse(request: HttpRequest) -> JsonResponse:
     """Parse a Tanglish text input into proposed draft entries."""
+    from .demo_guards import check_rate_limit
+    rate_err = check_rate_limit(request, "parse")
+    if rate_err:
+        return rate_err
+
     try:
         data = json.loads(request.body.decode("utf-8")) if request.body else {}
     except json.JSONDecodeError:
@@ -260,6 +270,11 @@ def api_reverse(request: HttpRequest) -> JsonResponse:
 @require_POST
 def api_reminder(request: HttpRequest) -> JsonResponse:
     """Generate a polite, verified payment reminder message for a customer."""
+    from .demo_guards import check_rate_limit
+    rate_err = check_rate_limit(request, "reminder")
+    if rate_err:
+        return rate_err
+
     try:
         data = json.loads(request.body.decode("utf-8")) if request.body else {}
     except json.JSONDecodeError:
@@ -304,6 +319,17 @@ def api_reminder(request: HttpRequest) -> JsonResponse:
 @require_POST
 def api_agent_run(request: HttpRequest) -> JsonResponse:
     """Trigger a new Daily Collections Agent review run."""
+    from .demo_guards import check_rate_limit, is_daily_budget_exceeded
+    rate_err = check_rate_limit(request, "agent")
+    if rate_err:
+        return rate_err
+
+    if is_daily_budget_exceeded():
+        return _json_error(
+            "Demo budget reached - offline mode. Daily collections agent run is temporarily paused.",
+            status=200,
+        )
+
     from .agent import AgentRunner
 
     mode = None
@@ -442,6 +468,11 @@ def api_agent_approve(request: HttpRequest) -> JsonResponse:
 @require_POST
 def api_ask(request: HttpRequest) -> JsonResponse:
     """Read-only question answering endpoint about customer balances."""
+    from .demo_guards import check_rate_limit
+    rate_err = check_rate_limit(request, "ask")
+    if rate_err:
+        return rate_err
+
     from .ask import answer_question
 
     try:
@@ -464,6 +495,17 @@ def api_parse_photo(request: HttpRequest) -> JsonResponse:
     """Parse a notebook photo uploaded via multipart form data into pending DraftEntry records.
     Image is processed in-memory only and never written to disk or the database.
     """
+    from .demo_guards import check_rate_limit, is_daily_budget_exceeded
+    rate_err = check_rate_limit(request, "photo")
+    if rate_err:
+        return rate_err
+
+    if is_daily_budget_exceeded():
+        return _json_error(
+            "Demo budget reached - offline mode. Notebook photo scanning is temporarily paused to conserve demo credits.",
+            status=200,
+        )
+
     from .photo_parser import parse_photo_in_memory, ALLOWED_MIME_TYPES, MAX_PHOTO_SIZE_BYTES
 
     if "image" not in request.FILES:

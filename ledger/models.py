@@ -248,3 +248,36 @@ class AgentStep(models.Model):
     def __str__(self) -> str:
         return f"Step #{self.index} [{self.kind}] {self.name} (run {self.run_id})"
 
+
+class RateLimitRecord(models.Model):
+    """Tracks endpoint requests per client IP to enforce hourly rate limits in demo mode."""
+
+    ip = models.CharField(max_length=45, db_index=True)
+    action = models.CharField(max_length=32, db_index=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        verbose_name = "Rate Limit Record"
+        verbose_name_plural = "Rate Limit Records"
+        indexes = [
+            models.Index(fields=["ip", "action", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ip} - {self.action} at {self.created_at}"
+
+
+class DailyLiveCallBudget(models.Model):
+    """Tracks global daily live Meta API calls, resetting at UTC midnight."""
+
+    date = models.DateField(unique=True, db_index=True)  # UTC date
+    call_count = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Daily Live Call Budget"
+        verbose_name_plural = "Daily Live Call Budgets"
+
+    def __str__(self) -> str:
+        return f"UTC {self.date}: {self.call_count} live calls"
+
+

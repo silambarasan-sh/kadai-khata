@@ -324,26 +324,27 @@ All 3 samples (`newpage1.json`, `newpage2.json`, `newpage3.json`) are owner-veri
 
 #### Live Benchmark Results ($n = 3$ images, 11 total ground-truth rows)
 
-| Metric | Default Effort (Run A) | Default Effort (Run B) | Minimal Effort (`minimal`) |
-|---|---|---|---|
-| **Overall Row Recall** | **90.9%** (10/11) | **100.0%** (11/11) | **90.9%** (10/11) |
-| **Exact-Field Accuracy** | **81.8%** (9/11) | **90.9%** (10/11) | **90.9%** (10/11) |
-| **Total False-Positive Rows** | 1 | 0 | 1 |
-| **Cancelled Rows Handled** | 1 / 1 detected | 2 / 1 detected | 1 / 1 detected |
-| **Unreadable Rows Handled** | 1 / 1 flagged | 0 / 1 flagged | 1 / 1 flagged |
-| **Average Latency** | 13.58s | 11.12s | **5.39s** |
-| **Average Total Tokens** | 5,414 | 5,172 | **4,014** |
-| **Total Cached Tokens** | 0 | 4,578 | 0 |
+Across all five live runs conducted across prompts:
 
-- **Rani Amount Misread on newpage2**: In both default effort runs, the model extracted Rani's payment as ₹260 (matching what looks like 260 on paper), whereas the owner intended ₹200. In Run A this gave 9/11 exact match, and in Run B 10/11 exact match. This is documented honestly as a genuine model handwriting misread.
-- **Recommended Effort Setting**: **Default reasoning effort (`META_VISION_REASONING_EFFORT=""`)** is recommended. Although minimal reasoning effort yields faster inference (~5.4s vs ~11-13s), default reasoning effort achieves superior row recall (up to 100% recall with 0 false rows in Run B, vs false-positive rows under minimal effort). Vision requests require the full reasoning capacity to reliably disambiguate noisy handwriting and columns.
+| Run / Prompt | Reasoning Effort | Overall Recall | Exact-Field Accuracy | False Rows | Latency | Ground Truth Context |
+|---|---|---|---|---|---|---|
+| **Prompt 10** | Default (`""`) | **100.0%** (11/11) | **100.0%** (11/11) | **0** | ~12.8s | Evaluated against provisional GT (Rani = ₹260) |
+| **Prompt 10** | Minimal (`minimal`) | **81.8%** (9/11) | **81.8%** (9/11) | **2** | **~4.5s** | Evaluated against provisional GT (Rani = ₹260) |
+| **Prompt 10.1 (Run A)** | Default (`""`) | **90.9%** (10/11) | **81.8%** (9/11) | **1** | 13.58s | Owner-verified GT (Rani = ₹200; misread as ₹260) |
+| **Prompt 10.1 (Run B)** | Default (`""`) | **100.0%** (11/11) | **90.9%** (10/11) | **0** | 11.12s | Owner-verified GT (Rani = ₹200; misread as ₹260) |
+| **Prompt 10.1** | Minimal (`minimal`) | **90.9%** (10/11) | **90.9%** (10/11) | **1** | **5.39s** | Owner-verified GT (Rani = ₹200; misread as ₹260) |
+
+- **Empirical Variance & Sample Size**: With $n = 3$ images ($11$ rows), results naturally vary from run to run due to generative vision sampling. While default reasoning effort appeared slightly better across these five runs, the difference is **not statistically meaningful** given the small evaluation set.
+- **Speed vs Accuracy Trade-off**: Minimal reasoning effort is **2x to 5x faster** (~4.5s - 5.4s vs ~11s - 13.6s) and saves tokens.
+- **Demo Default Setting**: The default setting for the public demo is **model default effort (`META_VISION_REASONING_EFFORT=""`)**, because for a shopkeeper's financial ledger, a missed transaction row or an extra hallucinated row costs substantially more than waiting an extra 5-8 seconds.
+- **Owner Review Safety Net**: Regardless of the effort setting, the human-in-the-loop review and confirmation screen is the ultimate safety net. No vision-extracted row is ever committed to the ledger until the shopkeeper explicitly reviews and clicks Confirm.
 
 ---
 
 ## Known Limitations
 
 1. **No Authentication / Multi-User**: Designed as a single-shopkeeper demo; lacks multi-tenant isolation, user accounts, and login authentication.
-2. **SQLite Database**: Uses local SQLite database; not intended for high-concurrency production deployments without migration to PostgreSQL.
+2. **SQLite Database & Ephemeral Storage**: Uses a local SQLite database (`DATABASE_PATH`). Note that free-tier cloud host disks (e.g., Render free tier) are ephemeral: data may reset on service restarts or redeployments, which is acceptable for a public judge demo with seed data.
 3. **Photo Dates Not Parsed**: The v1 vision parser does not extract transaction dates from notebook rows; confirmed transactions are recorded with the ledger timestamp at confirmation time.
 4. **Small Evaluation Sample Sizes**:
    - Parser Golden Set: $n = 20$

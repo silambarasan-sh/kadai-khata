@@ -226,6 +226,10 @@ class MetaClient:
         for attempt in range(self.max_retries):
             start_time = time.perf_counter()
             try:
+                # Count every Meta API request toward daily live call budget
+                from ledger.demo_guards import increment_daily_live_calls
+                increment_daily_live_calls(1)
+
                 response = client.chat.completions.create(**request_kwargs)
                 latency_ms = (time.perf_counter() - start_time) * 1000.0
 

@@ -87,7 +87,19 @@ ENTRIES_DATA = [
 class Command(BaseCommand):
     help = "Seed 8 fictional Tamil Nadu customers and 40 realistic ledger transactions (idempotent)."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--if-empty",
+            "--only-if-empty",
+            action="store_true",
+            help="Only seed if there are currently no customers in the database.",
+        )
+
     def handle(self, *args, **options):
+        if options.get("if_empty") and Customer.objects.exists():
+            self.stdout.write(self.style.NOTICE("[Seed Skipped] Customers already exist in database."))
+            return
+
         now = timezone.now()
 
         created_customers = 0

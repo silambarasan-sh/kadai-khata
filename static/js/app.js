@@ -98,7 +98,10 @@
             photoTotalMismatch: "Totals mismatch",
             uploadingPhoto: "Processing photo (downscaling & extracting rows)...",
             useLatinName: "Use English",
-            useTamilName: "Use Tamil"
+            useTamilName: "Use Tamil",
+            tryThese: "Try these:",
+            trySampleNotebook: "Try a sample notebook page",
+            howItWorks: "How it works"
         },
         ta: {
             appTitle: "கடை கணக்கு",
@@ -189,7 +192,10 @@
             photoTotalMismatch: "மொத்தத்தில் முரண்பாடு உள்ளது",
             uploadingPhoto: "புகைப்படம் செயலாக்கப்படுகிறது...",
             useLatinName: "ஆங்கில பெயர்",
-            useTamilName: "தமிழ் பெயர்"
+            useTamilName: "தமிழ் பெயர்",
+            tryThese: "உதாரணங்கள்:",
+            trySampleNotebook: "மாதிரி நோட்புக் பக்கம்",
+            howItWorks: "எப்படி செயல்படுகிறது"
         }
     };
 
@@ -297,7 +303,11 @@
         photoAckCheckbox: document.getElementById("photo-ack-checkbox"),
         photoExceptionsCard: document.getElementById("photo-exceptions-card"),
         photoCancelledList: document.getElementById("photo-cancelled-list"),
-        photoUnreadableList: document.getElementById("photo-unreadable-list")
+        photoUnreadableList: document.getElementById("photo-unreadable-list"),
+        howItWorksBtn: document.getElementById("how-it-works-btn"),
+        howItWorksModal: document.getElementById("how-it-works-modal"),
+        closeHowItWorksBtn: document.getElementById("close-how-it-works-btn"),
+        trySampleNotebookBtn: document.getElementById("try-sample-notebook-btn")
     };
 
     let currentPhotoTotalCheck = null;
@@ -1670,6 +1680,54 @@
         });
         elements.generateReminderBtn.addEventListener("click", handleGenerateReminder);
         elements.reminderCopyBtn.addEventListener("click", handleCopyMessage);
+
+        // "Try these" Sample Chips (Fills input box only, does not auto-submit)
+        document.querySelectorAll(".sample-chip").forEach(chip => {
+            chip.addEventListener("click", () => {
+                const text = chip.getAttribute("data-sentence");
+                if (text && elements.sentenceInput) {
+                    elements.sentenceInput.value = text;
+                    elements.sentenceInput.focus();
+                }
+            });
+        });
+
+        // "Try a sample notebook page" Button
+        if (elements.trySampleNotebookBtn) {
+            elements.trySampleNotebookBtn.addEventListener("click", async () => {
+                try {
+                    elements.trySampleNotebookBtn.disabled = true;
+                    const resp = await fetch("/static/samples/newpage3.jpeg");
+                    if (!resp.ok) throw new Error("Could not load bundled sample notebook image.");
+                    const blob = await resp.blob();
+                    const sampleFile = new File([blob], "sample_notebook_page.jpeg", { type: "image/jpeg" });
+                    handlePhotoFileSelected(sampleFile);
+                } catch (err) {
+                    showToast(err.message, "error");
+                } finally {
+                    elements.trySampleNotebookBtn.disabled = false;
+                }
+            });
+        }
+
+        // "How it works" Modal
+        if (elements.howItWorksBtn && elements.howItWorksModal) {
+            const openModal = () => {
+                elements.howItWorksModal.style.display = "flex";
+                elements.howItWorksBtn.setAttribute("aria-expanded", "true");
+            };
+            const closeModal = () => {
+                elements.howItWorksModal.style.display = "none";
+                elements.howItWorksBtn.setAttribute("aria-expanded", "false");
+            };
+            elements.howItWorksBtn.addEventListener("click", openModal);
+            if (elements.closeHowItWorksBtn) {
+                elements.closeHowItWorksBtn.addEventListener("click", closeModal);
+            }
+            elements.howItWorksModal.addEventListener("click", (e) => {
+                if (e.target === elements.howItWorksModal) closeModal();
+            });
+        }
     }
 
     // --- Init ---

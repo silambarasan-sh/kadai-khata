@@ -148,6 +148,29 @@ def generate_reminder(
             whatsapp_url=wa_url,
         )
 
+    from ledger.demo_guards import is_daily_budget_exceeded
+    if is_daily_budget_exceeded():
+        msg = deterministic_fallback_template(first_name, balance, language, tone)
+        wa_url = None
+        if customer.phone:
+            clean_phone = re.sub(r"[^0-9]", "", customer.phone)
+            if len(clean_phone) == 10:
+                clean_phone = f"91{clean_phone}"
+            wa_url = f"https://wa.me/{clean_phone}?text={urllib.parse.quote(msg)}"
+        return ReminderResult(
+            customer_id=customer.id,
+            customer_name=customer.name,
+            phone=customer.phone,
+            balance=f"{balance:.2f}",
+            days_overdue=days_overdue,
+            language=language,
+            tone=tone,
+            message=f"[Demo budget reached - offline mode] {msg}",
+            verified=True,
+            source_label="fallback",
+            whatsapp_url=wa_url,
+        )
+
     # Live Mode generation with verification and retry
     client = MetaClient(mode="live")
     prompt = (
