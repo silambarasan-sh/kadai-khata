@@ -87,3 +87,4 @@ All environment variables use placeholder values below. Never commit real keys.
 | `META_VISION_TIMEOUT_SECONDS` | Optional | `90.0` | Timeout in seconds for multimodal notebook photo parsing. |
 | `META_VISION_REASONING_EFFORT` | Optional | `""` | Vision reasoning effort override (`""` for model default, or `minimal`). |
 | `MAX_ENTRY_AMOUNT` | Optional | `100000.00` | Business logic boundary for maximum single transaction amount. |
+

@@ -7,3 +7,4 @@ pip install -r requirements.txt
 
 echo "==> Collecting static assets..."
 python manage.py collectstatic --no-input --clear
+

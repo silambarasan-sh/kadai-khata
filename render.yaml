@@ -43,3 +43,4 @@ services:
         value: "90.0"
       - key: MODEL_API_KEY
         sync: false
+

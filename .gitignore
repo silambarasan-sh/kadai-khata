@@ -43,6 +43,10 @@ htmlcov/
 .tox/
 .nox/
 
+# Voice sample recordings (never commit audio binaries)
+tests/voice_samples/*
+!tests/voice_samples/expected.txt
+
 # IDE & OS
 .vscode/
 .idea/

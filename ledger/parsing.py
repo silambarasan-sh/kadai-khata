@@ -356,14 +356,14 @@ def rule_based_fallback_parser(text: str, source_label: str = "fallback") -> Tup
     return extracted_entries, None
 
 
-def parse_text(text: str) -> ParseResult:
+def parse_text(text: str, save: bool = True, mode: Optional[str] = None) -> ParseResult:
     """Parse a Tanglish sentence into pending DraftEntry records.
 
     Workflow:
     1. Validates input bounds.
     2. Uses Meta Model API via MetaClient (or mock/fallback).
     3. Resolves existing customer matches / suggests fuzzy matches.
-    4. Saves DraftEntry rows with status='pending'.
+    4. Saves DraftEntry rows with status='pending' (if save=True).
 
     Returns ParseResult container.
     """
@@ -378,7 +378,7 @@ def parse_text(text: str) -> ParseResult:
     batch_id = uuid.uuid4()
     existing_customers = list(Customer.objects.values_list("name", flat=True))
 
-    meta_mode = getattr(settings, "META_MODE", "mock").strip().lower()
+    meta_mode = (mode if mode is not None else getattr(settings, "META_MODE", "mock")).strip().lower()
 
     # Step 1: Execute Meta Client or Fallback
     draft_specs: List[Dict[str, Any]] = []
@@ -501,7 +501,7 @@ def parse_text(text: str) -> ParseResult:
             candidates=candidates,
         )
 
-        draft = DraftEntry.objects.create(
+        draft_kwargs = dict(
             source_text=clean_text,
             customer_name=exact_customer.name if exact_customer else cust_name,
             matched_customer=exact_customer,
@@ -514,6 +514,10 @@ def parse_text(text: str) -> ParseResult:
             warnings=warnings_list,
             candidates=candidates,
         )
+        if save:
+            draft = DraftEntry.objects.create(**draft_kwargs)
+        else:
+            draft = DraftEntry(**draft_kwargs)
         created_drafts.append(draft)
 
     return ParseResult(

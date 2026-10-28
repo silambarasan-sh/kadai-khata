@@ -5,3 +5,4 @@ def demo_mode_processor(request):
     return {
         "DEMO_MODE": getattr(settings, "DEMO_MODE", False),
     }
+

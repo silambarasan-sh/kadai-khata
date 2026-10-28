@@ -25,3 +25,4 @@ exec gunicorn kadai_khata.wsgi:application \
     --timeout 120 \
     --access-logfile - \
     --error-logfile -
+

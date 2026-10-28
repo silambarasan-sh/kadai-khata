@@ -48,3 +48,4 @@ def test_eval_vision_repeat_flag_with_fake_client():
     assert "Mean Exact-Field Accuracy:" in output
     assert "Total False-Positive Rows:" in output
     assert "Min/Max Latency:" in output
+
