@@ -137,6 +137,64 @@ Evaluated across **204 live API runs** (34 sentences × 3 repeats for each reaso
 
 *Failure analysis*: Under Default Effort, only 1 failure occurred across 102 runs (Run 2 on `"Kumar-ku moonu nooru udhaar"` where the model asked for clarification instead of creating an unconfirmed draft). Under Minimal Effort, 102/102 runs passed with zero failures.
 
+---
+
+## Dual Inference Backends & Engine Routing
+
+Kadai Khata supports two inference backends:
+1. **Meta Model API (Default Engine)**:
+   - Model: `muse-spark-1.3` hosted on Meta's official infrastructure (`https://api.meta.ai/v1`).
+   - Powers all features: Tanglish text parsing, natural language Ask balance queries, verified reminder generation, multimodal handwritten notebook vision (`parse-photo`), voice transcription (`muse-voice-transcribe-1.0`), and the autonomous ReAct Collections Agent.
+2. **Baseten · Muse Spark Open (Optional Partner Engine)**:
+   - Model: Meta's open-weight `meta-models/muse-spark-open-1026` hosted on Baseten's serverless infrastructure (`https://inference.baseten.co/v1`).
+   - Powers: Tanglish text parsing (`/api/parse/`), natural language Ask balance queries (`/api/ask/`), and verified reminder generation (`/api/reminder/`).
+   - *Scope Limitation*: Multimodal notebook photo vision, voice transcription, and the autonomous collections agent remain exclusively on Meta Model API.
+   - *Infrastructure Disclosure*: Muse Spark Open runs on Baseten's cloud GPU infrastructure (via OpenAI-compatible completions API), not on local consumer hardware.
+
+### Engine Configuration (.env)
+```bash
+# Default backend engine: 'meta' or 'partner'
+META_PROVIDER=meta
+
+# Baseten Partner Backend Configuration
+PARTNER_BASE_URL=https://inference.baseten.co/v1
+PARTNER_MODEL=meta-models/muse-spark-open-1026
+PARTNER_API_KEY="your-baseten-api-key"
+PARTNER_TIMEOUT_SECONDS=90.0
+```
+
+### Partner Feasibility Probe Findings (`manage.py partner_probe`)
+Probed across 7 dimensions against Baseten live:
+
+| Feature / Probe | Live Finding on Baseten | Notes / Safety Enforcement |
+|---|---|---|
+| **Model ID** | `meta-models/muse-spark-open-1026` | Open-weight Muse Spark model |
+| **Endpoint** | `https://inference.baseten.co/v1` | OpenAI-compatible chat completions |
+| **Basic Chat** | PASS (1449 ms) | Returns clean text responses |
+| **Function Tools** | PASS (3013 ms) | Returns structured `tool_calls` matching schema |
+| **tool_choice='auto'** | Supported (1563 ms) | Automated model-driven tool selection |
+| **tool_choice='required'** | Supported (2449 ms) | Forced tool invocation supported |
+| **Parallel Tools** | Supported (2131 ms) | Returns multiple `record_ledger_entry` tool calls in a single turn |
+| **Reasoning Representation** | `message.reasoning_content` | Reasoning returned in dedicated attribute; `<think>` tags stripped from content to ensure reasoning text never appears in user-facing UI |
+| **Usage Reporting** | Reported (Prompt: 176, Completion: 472, Total: 648) | Reasoning tokens reported in `completion_tokens_details.reasoning_tokens` (427 tokens) |
+| **Latency** | Avg 2486 ms (Range: 1449 ms - 3352 ms) | Fast cloud GPU inference |
+
+### Live Backend Engine Benchmark (`eval_parser --compare-providers`)
+Measured live once each across all 49 benchmark sentences (golden 20 + heldout 14 + realistic negative 15):
+
+| Metric | Meta Model API (`muse-spark-1.3`) | Baseten (`muse-spark-open-1026`) |
+|---|---|---|
+| **Overall Accuracy** | **100.0%** (49/49) | **100.0%** (49/49) |
+| **Direction Accuracy** | **100.0%** (29/29) | **100.0%** (29/29) |
+| **Amount Accuracy** | **100.0%** (29/29) | **100.0%** (29/29) |
+| **No-Entry Correctness** | **100.0%** (24/24) | **100.0%** (24/24) |
+| **False-Positive Count** | **0** | **0** |
+| **Average Latency** | 6883.4 ms | **3831.1 ms (44.3% faster)** |
+| **Average Total Tokens** | 2603.9 | **2276.5 (12.6% token savings)** |
+| **Avg Reasoning Tokens** | 673.2 | **267.4** |
+
+Both engines enforce identical human-in-the-loop review, safety warning layers, rate limits, and daily live-call budgets.
+
 ### Safety Warnings Layer
 `DraftEntry` instances automatically generate safety warnings displayed in the UI / API responses:
 1. **New Customer on Payment**: Flags when a repayment is recorded for someone with no prior credit history.

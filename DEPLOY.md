@@ -91,5 +91,10 @@ All environment variables use placeholder values below. Never commit real keys.
 | `META_TIMEOUT_SECONDS` | Optional | `30.0` | Timeout in seconds for standard text/chat completions. |
 | `META_VISION_TIMEOUT_SECONDS` | Optional | `90.0` | Timeout in seconds for multimodal notebook photo parsing. |
 | `META_VISION_REASONING_EFFORT` | Optional | `""` | Vision reasoning effort override (`""` for model default, or `minimal`). |
+| `META_PROVIDER` | Optional | `meta` | Inference backend provider: `meta` (Meta Model API) or `partner` (Baseten). |
+| `PARTNER_BASE_URL` | Optional | `https://inference.baseten.co/v1` | Base URL for Baseten partner inference backend. |
+| `PARTNER_MODEL` | Optional | `meta-models/muse-spark-open-1026` | Model identifier for Baseten Muse Spark Open backend. |
+| `PARTNER_API_KEY` | Optional | `""` | Baseten API key. Required when using the Baseten backend. |
+| `PARTNER_TIMEOUT_SECONDS` | Optional | `90.0` | Timeout in seconds for partner backend completions. |
 | `MAX_ENTRY_AMOUNT` | Optional | `100000.00` | Business logic boundary for maximum single transaction amount. |
 

@@ -123,14 +123,35 @@ def _find_customer_in_text(text: str) -> Optional[Customer]:
     return None
 
 
-def answer_question(question: str, mode: Optional[str] = None) -> Dict[str, Any]:
+def answer_question(
+    question: str,
+    mode: Optional[str] = None,
+    provider: Optional[str] = None,
+) -> Dict[str, Any]:
     """Process a shopkeeper question and return a verified answer."""
+    from ledger.meta_client import format_badge_label
+
     question = question.strip()
+    effective_provider = (
+        provider if provider is not None else getattr(settings, "META_PROVIDER", "meta")
+    ).strip().lower()
+    if effective_provider not in ("meta", "partner"):
+        effective_provider = "meta"
+
+    effective_model = (
+        getattr(settings, "PARTNER_MODEL", "meta-models/muse-spark-open-1026")
+        if effective_provider == "partner"
+        else getattr(settings, "META_MODEL", "muse-spark-1.3")
+    )
+
     if not question:
         return {
             "question": "",
             "answer": "Please ask a question about customer balances.",
             "source_label": "fallback",
+            "provider": effective_provider,
+            "model": effective_model,
+            "badge_label": format_badge_label("fallback", effective_provider),
             "verified": True,
         }
 
@@ -155,6 +176,9 @@ def answer_question(question: str, mode: Optional[str] = None) -> Dict[str, Any]
                 "customer_name": matched_cust.name,
                 "balance": float(bal),
                 "source_label": "mock",
+                "provider": effective_provider,
+                "model": effective_model,
+                "badge_label": format_badge_label("mock", effective_provider),
                 "verified": True,
             }
         else:
@@ -166,6 +190,9 @@ def answer_question(question: str, mode: Optional[str] = None) -> Dict[str, Any]
                 "question": question,
                 "answer": ans,
                 "source_label": "mock",
+                "provider": effective_provider,
+                "model": effective_model,
+                "badge_label": format_badge_label("mock", effective_provider),
                 "verified": True,
             }
 
@@ -174,11 +201,14 @@ def answer_question(question: str, mode: Optional[str] = None) -> Dict[str, Any]
     if is_daily_budget_exceeded():
         res = _deterministic_ask_fallback(question)
         res["source_label"] = "fallback"
+        res["provider"] = effective_provider
+        res["model"] = effective_model
+        res["badge_label"] = format_badge_label("fallback", effective_provider)
         res["answer"] = f"[Demo budget reached - offline mode] {res['answer']}"
         return res
 
     # Live Mode
-    client = MetaClient(mode="live")
+    client = MetaClient(mode="live", provider=effective_provider)
     system_msg = {
         "role": "system",
         "content": (
@@ -211,6 +241,9 @@ def answer_question(question: str, mode: Optional[str] = None) -> Dict[str, Any]
                 "question": question,
                 "answer": raw_text,
                 "source_label": "live",
+                "provider": effective_provider,
+                "model": getattr(res1, "model", effective_model),
+                "badge_label": format_badge_label("live", effective_provider),
                 "verified": True,
             }
 
@@ -288,23 +321,33 @@ def answer_question(question: str, mode: Optional[str] = None) -> Dict[str, Any]
 
         if mismatched:
             # Amount mismatch: return deterministic fallback
-            return _deterministic_ask_fallback(question)
+            fb = _deterministic_ask_fallback(question)
+            fb["provider"] = effective_provider
+            fb["model"] = effective_model
+            fb["badge_label"] = format_badge_label("fallback", effective_provider)
+            return fb
 
         return {
             "question": question,
             "answer": ans_text,
             "source_label": "live",
+            "provider": effective_provider,
+            "model": getattr(res2, "model", effective_model),
+            "badge_label": format_badge_label("live", effective_provider),
             "verified": True,
         }
 
     except Exception:
-        return _deterministic_ask_fallback(question)
+        fb = _deterministic_ask_fallback(question)
+        fb["provider"] = effective_provider
+        fb["model"] = effective_model
+        fb["badge_label"] = format_badge_label("fallback", effective_provider)
+        return fb
 
 
 def _deterministic_ask_fallback(question: str) -> Dict[str, Any]:
     """Deterministic fallback answer based on DB lookup."""
     matched_cust = _find_customer_in_text(question)
-
 
     if matched_cust:
         bal = get_balance(matched_cust)
@@ -314,6 +357,9 @@ def _deterministic_ask_fallback(question: str) -> Dict[str, Any]:
             "customer_name": matched_cust.name,
             "balance": float(bal),
             "source_label": "fallback",
+            "provider": "meta",
+            "model": "muse-spark-1.3",
+            "badge_label": "FALLBACK",
             "verified": True,
         }
 
@@ -323,5 +369,8 @@ def _deterministic_ask_fallback(question: str) -> Dict[str, Any]:
         "question": question,
         "answer": f"கணக்கு விவரம்: மொத்தம் {len(all_cust)} வாடிக்கையாளர்கள், பாக்கி ₹{total_bal:.2f}.",
         "source_label": "fallback",
+        "provider": "meta",
+        "model": "muse-spark-1.3",
+        "badge_label": "FALLBACK",
         "verified": True,
     }

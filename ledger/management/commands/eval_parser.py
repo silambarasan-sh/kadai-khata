@@ -61,12 +61,18 @@ class Command(BaseCommand):
         parser.add_argument(
             "--all",
             action="store_true",
-            help="Run both golden (20) and held-out (14) datasets (total 34 sentences).",
+            help="Run golden (20), held-out (14), and realistic (10) datasets (total 44 sentences).",
         )
         parser.add_argument(
             "--mock",
             action="store_true",
             help="Force mock mode execution regardless of settings.",
+        )
+        parser.add_argument(
+            "--provider",
+            type=str,
+            default="",
+            help="Inference provider to evaluate ('meta' or 'partner'). Defaults to settings.META_PROVIDER.",
         )
         parser.add_argument(
             "--effort",
@@ -77,7 +83,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--compare",
             action="store_true",
-            help="Run all 34 sentences under default effort vs minimal effort and print a comparison table.",
+            help="Run all sentences under default effort vs minimal effort and print a comparison table.",
+        )
+        parser.add_argument(
+            "--compare-providers",
+            action="store_true",
+            help="Run all sentences across both Meta Model API and Baseten Partner backend and print side-by-side comparison.",
         )
         parser.add_argument(
             "--repeat",
@@ -91,12 +102,43 @@ class Command(BaseCommand):
             help="Print detailed failure report with sentence text, expected vs got, and run index.",
         )
 
+    def write_msg(self, msg: str = "", style_func=None):
+        out_msg = style_func(msg) if style_func else msg
+        try:
+            self.stdout.write(out_msg)
+        except Exception:
+            try:
+                import sys
+                sys.stdout.buffer.write(f"{out_msg}\n".encode("utf-8", errors="replace"))
+                sys.stdout.buffer.flush()
+            except Exception:
+                pass
+
     def handle(self, *args, **options):
+        import sys
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
+        if hasattr(sys.stderr, "reconfigure"):
+            try:
+                sys.stderr.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
+
         if options["mock"]:
             settings.META_MODE = "mock"
+        else:
+            settings.META_MODE = "live"
+            settings.DEMO_DAILY_LIVE_CALLS = 1000
 
         repeat = max(1, options["repeat"])
         show_failures = options["show_failures"]
+
+        if options["compare_providers"]:
+            self.run_provider_comparison(repeat=repeat, show_failures=show_failures)
+            return
 
         if options["compare"]:
             self.run_comparison(repeat=repeat, show_failures=show_failures)
@@ -104,12 +146,14 @@ class Command(BaseCommand):
 
         cases = self.load_cases(options)
         effort_override = options["effort"] if options["effort"] else getattr(settings, "META_REASONING_EFFORT", None)
+        provider_override = options["provider"] if options["provider"] else getattr(settings, "META_PROVIDER", "meta")
         self.evaluate_dataset(
             cases,
             title="Dataset Evaluation",
             effort=effort_override,
             repeat=repeat,
             show_failures=show_failures,
+            provider=provider_override,
         )
 
     def load_cases(self, options) -> List[Dict[str, Any]]:
@@ -119,10 +163,16 @@ class Command(BaseCommand):
         if options["all"]:
             g_path = base_dir / "tests" / "golden_sentences.json"
             h_path = base_dir / "tests" / "heldout_sentences.json"
-            with open(g_path, "r", encoding="utf-8") as f:
-                cases.extend(json.load(f))
-            with open(h_path, "r", encoding="utf-8") as f:
-                cases.extend(json.load(f))
+            r_path = base_dir / "tests" / "realistic_sentences.json"
+            if g_path.exists():
+                with open(g_path, "r", encoding="utf-8") as f:
+                    cases.extend(json.load(f))
+            if h_path.exists():
+                with open(h_path, "r", encoding="utf-8") as f:
+                    cases.extend(json.load(f))
+            if r_path.exists():
+                with open(r_path, "r", encoding="utf-8") as f:
+                    cases.extend(json.load(f))
         elif options["file"]:
             path = Path(options["file"])
             if not path.is_absolute():
@@ -144,29 +194,41 @@ class Command(BaseCommand):
         quiet_table: bool = False,
         repeat: int = 1,
         show_failures: bool = False,
-    ) -> Dict[str, float]:
+        provider: Optional[str] = None,
+    ) -> Dict[str, Any]:
         if effort:
             settings.META_REASONING_EFFORT = effort
         elif effort == "":
             settings.META_REASONING_EFFORT = None
 
+        effective_provider = (
+            provider if provider is not None else getattr(settings, "META_PROVIDER", "meta")
+        ).strip().lower()
+        if effective_provider not in ("meta", "partner"):
+            effective_provider = "meta"
+
         active_mode = getattr(settings, "META_MODE", "mock").upper()
-        active_model = getattr(settings, "META_MODEL", "muse-spark-1.3")
+        active_model = (
+            getattr(settings, "PARTNER_MODEL", "meta-models/muse-spark-open-1026")
+            if effective_provider == "partner"
+            else getattr(settings, "META_MODEL", "muse-spark-1.3")
+        )
         active_effort = getattr(settings, "META_REASONING_EFFORT", None) or "default"
 
         if not quiet_table:
-            self.stdout.write(self.style.NOTICE(f"\n=== Kadai Khata: {title} ==="))
-            self.stdout.write(f"Mode              : {active_mode}")
-            self.stdout.write(f"Model             : {active_model}")
-            self.stdout.write(f"Reasoning Effort  : {active_effort}")
-            self.stdout.write(f"Total Sentences   : {len(cases)} (Repeats: {repeat})")
-            self.stdout.write("=" * 128)
+            self.write_msg(self.style.NOTICE(f"\n=== Kadai Khata: {title} ==="))
+            self.write_msg(f"Mode              : {active_mode}")
+            self.write_msg(f"Provider          : {effective_provider.upper()}")
+            self.write_msg(f"Model             : {active_model}")
+            self.write_msg(f"Reasoning Effort  : {active_effort}")
+            self.write_msg(f"Total Sentences   : {len(cases)} (Repeats: {repeat})")
+            self.write_msg("=" * 128)
             header = (
                 f"{'#':<3} | {'Sentence':<34} | {'Expected (Cnt/Cust/Kind/Amt)':<34} | "
                 f"{'Got (Cnt/Cust/Kind/Amt)':<34} | {'Lat(ms)':<7} | {'Tok':<4} | {'Status':<6}"
             )
-            self.stdout.write(header)
-            self.stdout.write("-" * 128)
+            self.write_msg(header)
+            self.write_msg("-" * 128)
 
         total_runs = len(cases) * repeat
         total_passed = 0
@@ -181,6 +243,7 @@ class Command(BaseCommand):
 
         total_latency = 0.0
         total_tokens = 0
+        total_reasoning_tokens = 0
 
         failures: List[Dict[str, Any]] = []
 
@@ -190,10 +253,12 @@ class Command(BaseCommand):
                 expected_raw = case["expected"]
                 is_no_entry_expected = expected_raw == "no_entry"
 
-                res = parse_text(sentence)
+                res = parse_text(sentence, save=False, provider=effective_provider)
                 total_latency += res.latency_ms
                 tok = res.usage_tokens.get("total_tokens", 0)
+                reasoning_tok = res.usage_tokens.get("reasoning_tokens", 0)
                 total_tokens += tok
+                total_reasoning_tokens += reasoning_tok
 
                 drafts = res.drafts
 
@@ -273,7 +338,7 @@ class Command(BaseCommand):
                         f"{row_id:<3} | {short_sent:<34} | {short_exp:<34} | "
                         f"{short_got:<34} | {res.latency_ms:<7.1f} | {tok:<4} | {status_str}"
                     )
-                    self.stdout.write(row)
+                    self.write_msg(row)
 
         overall_acc = (total_passed / total_runs * 100.0) if total_runs else 0.0
         dir_acc = (correct_directions / total_expected_entries * 100.0) if total_expected_entries else 100.0
@@ -283,20 +348,20 @@ class Command(BaseCommand):
         avg_tok = (total_tokens / total_runs) if total_runs else 0.0
 
         if not quiet_table:
-            self.stdout.write("=" * 128)
-            self.stdout.write(self.style.SUCCESS(f"Evaluation Summary ({title}):"))
-            self.stdout.write(f"- Overall Accuracy        : {overall_acc:.1f}% ({total_passed}/{total_runs})")
-            self.stdout.write(f"- Direction (Kind) Acc    : {dir_acc:.1f}% ({correct_directions}/{total_expected_entries})")
-            self.stdout.write(f"- Amount Accuracy         : {amt_acc:.1f}% ({correct_amounts}/{total_expected_entries})")
-            self.stdout.write(f"- No-Entry Correctness    : {no_entry_acc:.1f}% ({correct_no_entries}/{total_no_entry_cases})")
-            self.stdout.write(f"- False-Positive Count    : {false_positive_count} (drafts created when expected no_entry)")
-            self.stdout.write(f"- Average Latency         : {avg_lat:.1f} ms")
-            self.stdout.write(f"- Average Total Tokens    : {avg_tok:.1f}")
+            self.write_msg("=" * 128)
+            self.write_msg(self.style.SUCCESS(f"Evaluation Summary ({title}):"))
+            self.write_msg(f"- Overall Accuracy        : {overall_acc:.1f}% ({total_passed}/{total_runs})")
+            self.write_msg(f"- Direction (Kind) Acc    : {dir_acc:.1f}% ({correct_directions}/{total_expected_entries})")
+            self.write_msg(f"- Amount Accuracy         : {amt_acc:.1f}% ({correct_amounts}/{total_expected_entries})")
+            self.write_msg(f"- No-Entry Correctness    : {no_entry_acc:.1f}% ({correct_no_entries}/{total_no_entry_cases})")
+            self.write_msg(f"- False-Positive Count    : {false_positive_count} (drafts created when expected no_entry)")
+            self.write_msg(f"- Average Latency         : {avg_lat:.1f} ms")
+            self.write_msg(f"- Average Total Tokens    : {avg_tok:.1f}")
 
             if show_failures and failures:
-                self.stdout.write(self.style.ERROR(f"\n=== Detailed Failures ({len(failures)} failures) ==="))
+                self.write_msg(self.style.ERROR(f"\n=== Detailed Failures ({len(failures)} failures) ==="))
                 for f_item in failures:
-                    self.stdout.write(
+                    self.write_msg(
                         f"[Run {f_item['run']}/{repeat}] Case #{f_item['id']}: \"{f_item['sentence']}\"\n"
                         f"  Expected: {f_item['expected']}\n"
                         f"  Got:      {f_item['got']}\n"
@@ -310,10 +375,55 @@ class Command(BaseCommand):
             "false_positives": false_positive_count,
             "avg_latency": avg_lat,
             "avg_tokens": avg_tok,
+            "avg_reasoning_tokens": (total_reasoning_tokens / total_runs) if total_runs else 0.0,
             "passed": total_passed,
             "total": total_runs,
             "failures": failures,
         }
+
+    def run_provider_comparison(self, repeat: int = 1, show_failures: bool = False):
+        """Run all 49 sentences (golden 20 + heldout 14 + realistic 15) once on Meta vs Partner."""
+        base_dir = settings.BASE_DIR
+        cases = []
+        for fn in ["golden_sentences.json", "heldout_sentences.json", "realistic_sentences.json"]:
+            path = base_dir / "tests" / fn
+            if path.exists():
+                with open(path, "r", encoding="utf-8") as f:
+                    cases.extend(json.load(f))
+
+        self.write_msg(self.style.NOTICE(f"\n[1/2] Benchmarking META MODEL API backend (Muse Spark 1.3)..."))
+        res_meta = self.evaluate_dataset(
+            cases,
+            title=f"{len(cases)} Sentences - Meta Model API (Muse Spark 1.3)",
+            quiet_table=False,
+            repeat=repeat,
+            show_failures=show_failures,
+            provider="meta",
+        )
+
+        self.write_msg(self.style.NOTICE(f"\n[2/2] Benchmarking BASETEN PARTNER backend (Muse Spark Open)..."))
+        res_partner = self.evaluate_dataset(
+            cases,
+            title=f"{len(cases)} Sentences - Baseten (Muse Spark Open)",
+            quiet_table=False,
+            repeat=repeat,
+            show_failures=show_failures,
+            provider="partner",
+        )
+
+        self.write_msg(self.style.NOTICE(f"\n=== BACKEND ENGINE BENCHMARK COMPARISON ({len(cases)} Sentences x {repeat} Run) ==="))
+        self.write_msg("=" * 100)
+        self.write_msg(f"{'Metric':<32} | {'Meta Model API (Spark 1.3)':<30} | {'Baseten (Spark Open)':<28}")
+        self.write_msg("-" * 100)
+        self.write_msg(f"{'Overall Accuracy':<32} | {res_meta['overall_accuracy']:<29.1f}% | {res_partner['overall_accuracy']:<27.1f}%")
+        self.write_msg(f"{'Direction Accuracy':<32} | {res_meta['direction_accuracy']:<29.1f}% | {res_partner['direction_accuracy']:<27.1f}%")
+        self.write_msg(f"{'Amount Accuracy':<32} | {res_meta['amount_accuracy']:<29.1f}% | {res_partner['amount_accuracy']:<27.1f}%")
+        self.write_msg(f"{'No-Entry Correctness':<32} | {res_meta['no_entry_accuracy']:<29.1f}% | {res_partner['no_entry_accuracy']:<27.1f}%")
+        self.write_msg(f"{'False-Positive Count':<32} | {res_meta['false_positives']:<30} | {res_partner['false_positives']:<28}")
+        self.write_msg(f"{'Average Latency':<32} | {res_meta['avg_latency']:<27.1f} ms | {res_partner['avg_latency']:<25.1f} ms")
+        self.write_msg(f"{'Average Total Tokens':<32} | {res_meta['avg_tokens']:<30.1f} | {res_partner['avg_tokens']:<28.1f}")
+        self.write_msg(f"{'  (incl. Reasoning Tokens)':<32} | {res_meta['avg_reasoning_tokens']:<30.1f} | {res_partner['avg_reasoning_tokens']:<28.1f}")
+        self.write_msg("=" * 100)
 
     def run_comparison(self, repeat: int = 1, show_failures: bool = False):
         """Run all 34 sentences across N repeats: default reasoning effort vs minimal effort."""
@@ -324,7 +434,7 @@ class Command(BaseCommand):
         with open(base_dir / "tests" / "heldout_sentences.json", "r", encoding="utf-8") as f:
             cases.extend(json.load(f))
 
-        self.stdout.write(self.style.NOTICE(f"\n[1/2] Running Benchmark with DEFAULT Reasoning Effort (Repeats: {repeat})..."))
+        self.write_msg(self.style.NOTICE(f"\n[1/2] Running Benchmark with DEFAULT Reasoning Effort (Repeats: {repeat})..."))
         res_default = self.evaluate_dataset(
             cases,
             title="34 Sentences - Default Effort",
@@ -334,7 +444,7 @@ class Command(BaseCommand):
             show_failures=show_failures,
         )
 
-        self.stdout.write(self.style.NOTICE(f"\n[2/2] Running Benchmark with MINIMAL Reasoning Effort (Repeats: {repeat})..."))
+        self.write_msg(self.style.NOTICE(f"\n[2/2] Running Benchmark with MINIMAL Reasoning Effort (Repeats: {repeat})..."))
         res_minimal = self.evaluate_dataset(
             cases,
             title="34 Sentences - Minimal Effort",
@@ -344,15 +454,15 @@ class Command(BaseCommand):
             show_failures=show_failures,
         )
 
-        self.stdout.write(self.style.NOTICE(f"\n=== Reasoning Effort Comparison (34 Sentences x {repeat} Runs) ==="))
-        self.stdout.write("=" * 86)
-        self.stdout.write(f"{'Metric':<32} | {'Default Effort':<24} | {'Minimal Effort':<24}")
-        self.stdout.write("-" * 86)
-        self.stdout.write(f"{'Overall Accuracy':<32} | {res_default['overall_accuracy']:<23.1f}% | {res_minimal['overall_accuracy']:<23.1f}%")
-        self.stdout.write(f"{'Direction Accuracy':<32} | {res_default['direction_accuracy']:<23.1f}% | {res_minimal['direction_accuracy']:<23.1f}%")
-        self.stdout.write(f"{'Amount Accuracy':<32} | {res_default['amount_accuracy']:<23.1f}% | {res_minimal['amount_accuracy']:<23.1f}%")
-        self.stdout.write(f"{'No-Entry Correctness':<32} | {res_default['no_entry_accuracy']:<23.1f}% | {res_minimal['no_entry_accuracy']:<23.1f}%")
-        self.stdout.write(f"{'False-Positive Count':<32} | {res_default['false_positives']:<24} | {res_minimal['false_positives']:<24}")
-        self.stdout.write(f"{'Average Latency':<32} | {res_default['avg_latency']:<21.1f} ms | {res_minimal['avg_latency']:<21.1f} ms")
-        self.stdout.write(f"{'Average Total Tokens':<32} | {res_default['avg_tokens']:<24.1f} | {res_minimal['avg_tokens']:<24.1f}")
-        self.stdout.write("=" * 86)
+        self.write_msg(self.style.NOTICE(f"\n=== Reasoning Effort Comparison (34 Sentences x {repeat} Runs) ==="))
+        self.write_msg("=" * 86)
+        self.write_msg(f"{'Metric':<32} | {'Default Effort':<24} | {'Minimal Effort':<24}")
+        self.write_msg("-" * 86)
+        self.write_msg(f"{'Overall Accuracy':<32} | {res_default['overall_accuracy']:<23.1f}% | {res_minimal['overall_accuracy']:<23.1f}%")
+        self.write_msg(f"{'Direction Accuracy':<32} | {res_default['direction_accuracy']:<23.1f}% | {res_minimal['direction_accuracy']:<23.1f}%")
+        self.write_msg(f"{'Amount Accuracy':<32} | {res_default['amount_accuracy']:<23.1f}% | {res_minimal['amount_accuracy']:<23.1f}%")
+        self.write_msg(f"{'No-Entry Correctness':<32} | {res_default['no_entry_accuracy']:<23.1f}% | {res_minimal['no_entry_accuracy']:<23.1f}%")
+        self.write_msg(f"{'False-Positive Count':<32} | {res_default['false_positives']:<24} | {res_minimal['false_positives']:<24}")
+        self.write_msg(f"{'Average Latency':<32} | {res_default['avg_latency']:<21.1f} ms | {res_minimal['avg_latency']:<21.1f} ms")
+        self.write_msg(f"{'Average Total Tokens':<32} | {res_default['avg_tokens']:<24.1f} | {res_minimal['avg_tokens']:<24.1f}")
+        self.write_msg("=" * 86)

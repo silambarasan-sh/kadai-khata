@@ -31,7 +31,7 @@ from openai import (
 
 @dataclass
 class MetaResult:
-    """Standardized response container for all Meta API operations."""
+    """Standardized response container for all Meta / Partner API operations."""
 
     payload: Any
     source: str  # "live" | "mock" | "fallback"
@@ -39,6 +39,20 @@ class MetaResult:
     usage_tokens: Dict[str, int] = field(default_factory=dict)
     latency_ms: float = 0.0
     raw_response: Optional[Any] = None
+    provider: str = "meta"  # "meta" | "partner"
+
+
+def format_badge_label(source_label: str, provider: str = "meta") -> str:
+    """Format user-facing badge label based on execution source and engine provider."""
+    src = (source_label or "mock").strip().lower()
+    prov = (provider or "meta").strip().lower()
+    if src == "live":
+        if prov == "partner":
+            return "LIVE · Muse Spark Open (Baseten)"
+        return "LIVE · Muse Spark 1.3"
+    elif src == "fallback":
+        return "FALLBACK"
+    return "MOCK"
 
 
 class MetaClientError(Exception):
@@ -91,7 +105,7 @@ class MetaServerError(MetaClientError):
 
 
 class MetaClient:
-    """Client for Meta Model API using the OpenAI-compatible Chat Completions interface."""
+    """Client for Meta Model API and Partner backends (Baseten) using OpenAI interface."""
 
     def __init__(
         self,
@@ -103,19 +117,28 @@ class MetaClient:
         openai_client: Optional[OpenAI] = None,
         max_retries: int = 3,
         base_backoff_sec: float = 0.5,
+        provider: Optional[str] = None,
     ):
-        self.api_key = api_key if api_key is not None else getattr(settings, "MODEL_API_KEY", "")
-        self.base_url = base_url if base_url is not None else getattr(settings, "META_BASE_URL", "https://api.meta.ai/v1")
-        self.model = model if model is not None else getattr(settings, "META_MODEL", "muse-spark-1.3")
+        self.provider = (
+            provider if provider is not None else getattr(settings, "META_PROVIDER", "meta")
+        ).strip().lower()
+
+        if self.provider == "partner":
+            self.api_key = api_key if api_key is not None else getattr(settings, "PARTNER_API_KEY", "")
+            self.base_url = base_url if base_url is not None else getattr(settings, "PARTNER_BASE_URL", "https://inference.baseten.co/v1")
+            self.model = model if model is not None else getattr(settings, "PARTNER_MODEL", "meta-models/muse-spark-open-1026")
+            self.timeout = timeout if timeout is not None else getattr(settings, "PARTNER_TIMEOUT_SECONDS", 90.0)
+        else:
+            self.provider = "meta"
+            self.api_key = api_key if api_key is not None else getattr(settings, "MODEL_API_KEY", "")
+            self.base_url = base_url if base_url is not None else getattr(settings, "META_BASE_URL", "https://api.meta.ai/v1")
+            self.model = model if model is not None else getattr(settings, "META_MODEL", "muse-spark-1.3")
+            self.timeout = timeout if timeout is not None else getattr(settings, "META_TIMEOUT_SECONDS", 30.0)
+
         self.mode = (
             (mode if mode is not None else getattr(settings, "META_MODE", "mock"))
             .strip()
             .lower()
-        )
-        self.timeout = (
-            timeout
-            if timeout is not None
-            else getattr(settings, "META_TIMEOUT_SECONDS", 30.0)
         )
         self.max_retries = max_retries
         self.base_backoff_sec = base_backoff_sec
@@ -126,8 +149,9 @@ class MetaClient:
     def _get_client(self) -> OpenAI:
         if self._openai_client is None:
             if not self.api_key:
+                key_name = "PARTNER_API_KEY" if self.provider == "partner" else "MODEL_API_KEY"
                 raise MetaAuthenticationError(
-                    "MODEL_API_KEY is not set or empty. Please define MODEL_API_KEY in your .env file."
+                    f"{key_name} is not set or empty. Please define {key_name} in your .env file."
                 )
             self._openai_client = OpenAI(
                 api_key=self.api_key,
@@ -190,6 +214,7 @@ class MetaClient:
             },
             latency_ms=round(latency_ms, 2),
             raw_response={"mock": True},
+            provider=self.provider,
         )
 
     def _live_completion(
@@ -200,7 +225,7 @@ class MetaClient:
         temperature: float = 0.0,
         **extra_kwargs: Any,
     ) -> MetaResult:
-        """Execute a live completion against Meta Model API with retry on 429/5xx only."""
+        """Execute a live completion against Meta Model API or Partner backend with retry on 429/5xx only."""
         client = self._get_client()
 
         request_kwargs: Dict[str, Any] = {
@@ -214,7 +239,7 @@ class MetaClient:
                 del request_kwargs["reasoning_effort"]
         else:
             default_effort = getattr(settings, "META_REASONING_EFFORT", None)
-            if default_effort:
+            if default_effort and self.provider != "partner":
                 request_kwargs["reasoning_effort"] = default_effort
         if tools:
             request_kwargs["tools"] = tools
@@ -226,7 +251,7 @@ class MetaClient:
         for attempt in range(self.max_retries):
             start_time = time.perf_counter()
             try:
-                # Count every Meta API request toward daily live call budget
+                # Count every Meta/Partner API request toward daily live call budget
                 from ledger.demo_guards import increment_daily_live_calls
                 increment_daily_live_calls(1)
 
@@ -240,6 +265,12 @@ class MetaClient:
                         "completion_tokens": getattr(response.usage, "completion_tokens", 0),
                         "total_tokens": getattr(response.usage, "total_tokens", 0),
                     }
+                    comp_details = getattr(response.usage, "completion_tokens_details", None)
+                    if comp_details:
+                        reasoning_toks = getattr(comp_details, "reasoning_tokens", None)
+                        if reasoning_toks is not None:
+                            usage_dict["reasoning_tokens"] = reasoning_toks
+
                     prompt_details = getattr(response.usage, "prompt_tokens_details", None)
                     if prompt_details:
                         cached = getattr(prompt_details, "cached_tokens", None)
@@ -255,8 +286,19 @@ class MetaClient:
 
                 payload: Dict[str, Any] = {}
                 if message:
+                    raw_content = getattr(message, "content", "") or ""
+                    # Ensure reasoning text never appears in user-facing content (strip <think> tags if present)
+                    import re
+                    clean_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip()
+
+                    # Check reasoning_content attribute and model_extra
+                    reasoning_content = getattr(message, "reasoning_content", None)
+                    if not reasoning_content and hasattr(message, "model_extra") and isinstance(message.model_extra, dict):
+                        reasoning_content = message.model_extra.get("reasoning_content")
+
                     payload["role"] = getattr(message, "role", "assistant")
-                    payload["content"] = getattr(message, "content", "")
+                    payload["content"] = clean_content
+                    payload["reasoning_content"] = reasoning_content
                     payload["tool_calls"] = getattr(message, "tool_calls", None)
 
                 return MetaResult(
@@ -266,6 +308,7 @@ class MetaClient:
                     usage_tokens=usage_dict,
                     latency_ms=round(latency_ms, 2),
                     raw_response=response,
+                    provider=self.provider,
                 )
 
             except BadRequestError as exc:
@@ -276,8 +319,9 @@ class MetaClient:
 
             except AuthenticationError as exc:
                 # 401 Unauthorized: clear guidance, never retry
+                key_name = "PARTNER_API_KEY" if self.provider == "partner" else "MODEL_API_KEY"
                 raise MetaAuthenticationError(
-                    f"Authentication failed (HTTP 401). Check that MODEL_API_KEY is valid in .env. Details: {exc.message}"
+                    f"Authentication failed (HTTP 401). Check that {key_name} is valid in .env. Details: {exc.message}"
                 ) from exc
 
             except NotFoundError as exc:

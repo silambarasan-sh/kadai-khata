@@ -44,7 +44,11 @@ def _json_error(message: str, status: int = 400) -> JsonResponse:
     """Return a clean JSON error response without internal stack traces or leaked secrets."""
     from django.conf import settings
     clean_msg = str(message)
-    for secret in (getattr(settings, "MODEL_API_KEY", ""), getattr(settings, "SECRET_KEY", "")):
+    for secret in (
+        getattr(settings, "MODEL_API_KEY", ""),
+        getattr(settings, "PARTNER_API_KEY", ""),
+        getattr(settings, "SECRET_KEY", ""),
+    ):
         if secret and len(secret) > 4:
             clean_msg = clean_msg.replace(secret, "[REDACTED]")
     return JsonResponse({"error": clean_msg, "status": "error"}, status=status)
@@ -96,19 +100,34 @@ def api_parse(request: HttpRequest) -> JsonResponse:
     if not str(text).strip():
         return _json_error("Field 'text' is required and cannot be empty.")
 
+    provider = data.get("provider")
+    if provider is not None:
+        provider = str(provider).strip().lower()
+        if provider not in ("meta", "partner"):
+            return _json_error("Invalid provider. Must be 'meta' or 'partner'.", status=400)
+
     try:
-        result = parse_text(text)
+        result = parse_text(text, provider=provider)
     except ParsingError as exc:
         return _json_error(str(exc), status=400)
     except Exception as exc:
         return _json_error(f"Unexpected parsing failure: {str(exc)}", status=500)
 
+    serialized_drafts = [_serialize_draft(d) for d in result.drafts]
+    for d_dict in serialized_drafts:
+        d_dict["badge_label"] = result.badge_label
+        d_dict["provider"] = result.provider
+        d_dict["model"] = result.model
+
     return JsonResponse({
         "status": "ok",
         "batch_id": str(result.batch_id),
-        "drafts": [_serialize_draft(d) for d in result.drafts],
+        "drafts": serialized_drafts,
         "clarification": result.clarification,
         "source_label": result.source_label,
+        "provider": result.provider,
+        "model": result.model,
+        "badge_label": result.badge_label,
         "latency_ms": result.latency_ms,
         "usage": result.usage_tokens,
     })
@@ -302,8 +321,14 @@ def api_reminder(request: HttpRequest) -> JsonResponse:
     if tone not in {"soft", "firm"}:
         tone = "soft"
 
+    provider = data.get("provider")
+    if provider is not None:
+        provider = str(provider).strip().lower()
+        if provider not in ("meta", "partner"):
+            return _json_error("Invalid provider. Must be 'meta' or 'partner'.", status=400)
+
     try:
-        result = generate_reminder(customer_id=int(customer_id), language=language, tone=tone)
+        result = generate_reminder(customer_id=int(customer_id), language=language, tone=tone, provider=provider)
     except (Customer.DoesNotExist, ValueError):
         return _json_error(f"Customer #{customer_id} not found.", status=404)
     except Exception as exc:
@@ -321,6 +346,9 @@ def api_reminder(request: HttpRequest) -> JsonResponse:
         "message": result.message,
         "verified": result.verified,
         "source_label": result.source_label,
+        "provider": result.provider,
+        "model": result.model,
+        "badge_label": result.badge_label,
         "whatsapp_url": result.whatsapp_url,
     })
 
@@ -494,8 +522,14 @@ def api_ask(request: HttpRequest) -> JsonResponse:
     if not question:
         return _json_error("Field 'question' is required.")
 
+    provider = data.get("provider")
+    if provider is not None:
+        provider = str(provider).strip().lower()
+        if provider not in ("meta", "partner"):
+            return _json_error("Invalid provider. Must be 'meta' or 'partner'.", status=400)
+
     mode = data.get("mode")
-    result = answer_question(question, mode=mode)
+    result = answer_question(question, mode=mode, provider=provider)
     return JsonResponse({"status": "ok", **result})
 
 

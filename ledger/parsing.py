@@ -41,6 +41,9 @@ class ParseResult:
     latency_ms: float = 0.0
     usage_tokens: Dict[str, int] = field(default_factory=dict)
     raw_text: str = ""
+    provider: str = "meta"
+    model: str = ""
+    badge_label: str = ""
 
 
 # Tamil number word conversions
@@ -356,12 +359,17 @@ def rule_based_fallback_parser(text: str, source_label: str = "fallback") -> Tup
     return extracted_entries, None
 
 
-def parse_text(text: str, save: bool = True, mode: Optional[str] = None) -> ParseResult:
+def parse_text(
+    text: str,
+    save: bool = True,
+    mode: Optional[str] = None,
+    provider: Optional[str] = None,
+) -> ParseResult:
     """Parse a Tanglish sentence into pending DraftEntry records.
 
     Workflow:
     1. Validates input bounds.
-    2. Uses Meta Model API via MetaClient (or mock/fallback).
+    2. Uses Meta Model API or Partner backend via MetaClient (or mock/fallback).
     3. Resolves existing customer matches / suggests fuzzy matches.
     4. Saves DraftEntry rows with status='pending' (if save=True).
 
@@ -379,6 +387,18 @@ def parse_text(text: str, save: bool = True, mode: Optional[str] = None) -> Pars
     existing_customers = list(Customer.objects.values_list("name", flat=True))
 
     meta_mode = (mode if mode is not None else getattr(settings, "META_MODE", "mock")).strip().lower()
+
+    effective_provider = (
+        provider if provider is not None else getattr(settings, "META_PROVIDER", "meta")
+    ).strip().lower()
+    if effective_provider not in ("meta", "partner"):
+        effective_provider = "meta"
+
+    model_name = (
+        getattr(settings, "PARTNER_MODEL", "meta-models/muse-spark-open-1026")
+        if effective_provider == "partner"
+        else getattr(settings, "META_MODEL", "muse-spark-1.3")
+    )
 
     # Step 1: Execute Meta Client or Fallback
     draft_specs: List[Dict[str, Any]] = []
@@ -408,8 +428,8 @@ def parse_text(text: str, save: bool = True, mode: Optional[str] = None) -> Pars
         usage_tokens = {"prompt_tokens": len(clean_text.split()), "completion_tokens": 15, "total_tokens": len(clean_text.split()) + 15}
 
     else:
-        # Live Meta AI call
-        client = MetaClient(mode="live")
+        # Live AI call (Meta Model API or Partner backend)
+        client = MetaClient(mode="live", provider=effective_provider)
         messages = build_chat_messages(existing_customer_names=existing_customers, user_text=clean_text)
 
         try:
@@ -420,6 +440,10 @@ def parse_text(text: str, save: bool = True, mode: Optional[str] = None) -> Pars
                 temperature=0.0,
             )
             latency_ms = meta_res.latency_ms
+            usage_tokens = meta_res.usage_tokens
+            source_label = "live"
+            effective_provider = meta_res.provider
+            model_name = meta_res.model
             usage_tokens = meta_res.usage_tokens
             source_label = "live"
 
@@ -520,6 +544,9 @@ def parse_text(text: str, save: bool = True, mode: Optional[str] = None) -> Pars
             draft = DraftEntry(**draft_kwargs)
         created_drafts.append(draft)
 
+    from ledger.meta_client import format_badge_label
+    badge_label = format_badge_label(source_label, effective_provider)
+
     return ParseResult(
         batch_id=batch_id,
         drafts=created_drafts,
@@ -528,6 +555,9 @@ def parse_text(text: str, save: bool = True, mode: Optional[str] = None) -> Pars
         latency_ms=latency_ms,
         usage_tokens=usage_tokens,
         raw_text=clean_text,
+        provider=effective_provider,
+        model=model_name,
+        badge_label=badge_label,
     )
 
 

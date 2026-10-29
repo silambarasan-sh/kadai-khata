@@ -1,0 +1,87 @@
+{
+  "basic_chat": {
+    "success": true,
+    "latency_ms": 1448.63,
+    "content": "Chennai",
+    "prompt_tokens": 165,
+    "completion_tokens": 89,
+    "total_tokens": 254
+  },
+  "function_tools": {
+    "success": true,
+    "latency_ms": 3013.24,
+    "tool_calls_count": 1,
+    "details": [
+      {
+        "id": "chatcmpl-tool-d604bac496664939999f0098458d08c0",
+        "type": "function",
+        "name": "record_ledger_entry",
+        "arguments": "{\"customer_name\": \"Ravi\", \"kind\": \"credit_given\", \"amount\": 500.0, \"note\": \"udhaar\"}"
+      }
+    ],
+    "content": null
+  },
+  "tool_choice": {
+    "auto": {
+      "supported": true,
+      "latency_ms": 1563.28,
+      "tool_calls_count": 1
+    },
+    "required": {
+      "supported": true,
+      "latency_ms": 2448.93,
+      "tool_calls_count": 1
+    },
+    "none": {
+      "supported": true,
+      "latency_ms": 5345.44,
+      "tool_calls_count": 0
+    }
+  },
+  "parallel_tools": {
+    "success": true,
+    "latency_ms": 2130.81,
+    "count": 2,
+    "calls": [
+      "{\"customer_name\": \"Ravi\", \"kind\": \"credit_given\", \"amount\": 500, \"note\": \"udhaar kuduthen\"}",
+      "{\"customer_name\": \"Mani\", \"kind\": \"payment_received\", \"amount\": 200, \"note\": \"thirumba kuduthaan\"}"
+    ]
+  },
+  "reasoning": {
+    "latency_ms": 3351.74,
+    "has_reasoning_content_attr": true,
+    "reasoning_content_preview": "We need to think step by step. This is simple arithmetic. 1500 - 300 = 1200. But we need to consider",
+    "has_reasoning_attr": false,
+    "has_thought_attr": false,
+    "model_extra_keys": [
+      "reasoning_content"
+    ],
+    "has_think_tags_in_content": false,
+    "content_preview": "Initial balance = 1500\nAmount paid = 300\nNew balance = Initial balance - Amount paid\nNew balance = 1500 - 300 = 1200"
+  },
+  "usage": {
+    "usage_dump": {
+      "completion_tokens": 472,
+      "prompt_tokens": 176,
+      "total_tokens": 648,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 346,
+        "audio_tokens": 0,
+        "reasoning_tokens": 427,
+        "rejected_prediction_tokens": 536,
+        "text_tokens": null
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": null,
+        "text_tokens": null
+      }
+    },
+    "prompt_tokens": 176,
+    "completion_tokens": 472,
+    "total_tokens": 648,
+    "reasoning_tokens": 427
+  }
+}

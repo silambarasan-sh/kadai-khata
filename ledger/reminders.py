@@ -37,6 +37,9 @@ class ReminderResult:
     verified: bool
     source_label: str  # "live" | "mock" | "fallback"
     whatsapp_url: Optional[str] = None
+    provider: str = "meta"
+    model: str = ""
+    badge_label: str = ""
 
 
 def verify_reminder_balance(
@@ -108,8 +111,11 @@ def generate_reminder(
     customer_id: int,
     language: str = "ta",
     tone: str = "soft",
+    provider: Optional[str] = None,
 ) -> ReminderResult:
     """Generate a polite, verified payment reminder message for a customer."""
+    from ledger.meta_client import format_badge_label
+
     customer = Customer.objects.get(id=customer_id)
     balance = get_balance(customer)
     first_name = customer.name.split()[0]
@@ -121,6 +127,18 @@ def generate_reminder(
         days_overdue = max(1, (timezone.now() - last_entry.created_at).days)
 
     meta_mode = getattr(settings, "META_MODE", "mock").strip().lower()
+
+    effective_provider = (
+        provider if provider is not None else getattr(settings, "META_PROVIDER", "meta")
+    ).strip().lower()
+    if effective_provider not in ("meta", "partner"):
+        effective_provider = "meta"
+
+    effective_model = (
+        getattr(settings, "PARTNER_MODEL", "meta-models/muse-spark-open-1026")
+        if effective_provider == "partner"
+        else getattr(settings, "META_MODEL", "muse-spark-1.3")
+    )
 
     # If mock mode, return mock verified reminder
     if meta_mode == "mock":
@@ -146,6 +164,9 @@ def generate_reminder(
             verified=verified,
             source_label="mock",
             whatsapp_url=wa_url,
+            provider=effective_provider,
+            model=effective_model,
+            badge_label=format_badge_label("mock", effective_provider),
         )
 
     from ledger.demo_guards import is_daily_budget_exceeded
@@ -169,10 +190,13 @@ def generate_reminder(
             verified=True,
             source_label="fallback",
             whatsapp_url=wa_url,
+            provider=effective_provider,
+            model=effective_model,
+            badge_label=format_badge_label("fallback", effective_provider),
         )
 
     # Live Mode generation with verification and retry
-    client = MetaClient(mode="live")
+    client = MetaClient(mode="live", provider=effective_provider)
     prompt = (
         f"You are writing a polite reminder from a Tamil Nadu neighborhood shopkeeper.\n"
         f"Customer First Name: {first_name}\n"
@@ -206,6 +230,7 @@ def generate_reminder(
                 final_msg = clean_draft
                 verified = True
                 source_label = "live"
+                effective_model = getattr(res, "model", effective_model)
                 break
         except MetaClientError:
             break
@@ -235,4 +260,7 @@ def generate_reminder(
         verified=verified,
         source_label=source_label,
         whatsapp_url=wa_url,
+        provider=effective_provider,
+        model=effective_model,
+        badge_label=format_badge_label(source_label, effective_provider),
     )

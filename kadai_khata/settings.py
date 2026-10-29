@@ -140,6 +140,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MAX_ENTRY_AMOUNT = Decimal(os.getenv("MAX_ENTRY_AMOUNT", "100000.00"))
 
 # Meta AI Integration settings (using OpenAI Python SDK)
+META_PROVIDER = os.getenv("META_PROVIDER", "meta").strip().lower()
 MODEL_API_KEY = os.getenv("MODEL_API_KEY", "")
 META_BASE_URL = os.getenv("META_BASE_URL", "https://api.meta.ai/v1")
 META_MODEL = os.getenv("META_MODEL", "muse-spark-1.3")
@@ -149,6 +150,12 @@ META_REASONING_EFFORT = os.getenv("META_REASONING_EFFORT", "").strip() or None
 META_VISION_REASONING_EFFORT = os.getenv("META_VISION_REASONING_EFFORT", "").strip() or None
 META_VISION_TIMEOUT_SECONDS = float(os.getenv("META_VISION_TIMEOUT_SECONDS", "90.0"))
 MAX_INPUT_TEXT_LENGTH = int(os.getenv("MAX_INPUT_TEXT_LENGTH", "500"))
+
+# Partner Backend Settings (Meta Muse Spark Open served by Baseten)
+PARTNER_API_KEY = os.getenv("PARTNER_API_KEY", "")
+PARTNER_BASE_URL = os.getenv("PARTNER_BASE_URL", "https://inference.baseten.co/v1")
+PARTNER_MODEL = os.getenv("PARTNER_MODEL", "meta-models/muse-spark-open-1026")
+PARTNER_TIMEOUT_SECONDS = float(os.getenv("PARTNER_TIMEOUT_SECONDS", "90.0"))
 
 # Collections Agent settings
 AGENT_MAX_TURNS = int(os.getenv("AGENT_MAX_TURNS", "6"))

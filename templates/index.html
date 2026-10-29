@@ -17,6 +17,13 @@
                     <h1 id="app-title" class="brand-title" data-i18n="appTitle">Kadai Khata</h1>
                 </div>
                 <div class="header-actions">
+                    <div class="engine-selector-container">
+                        <label for="engine-select" class="engine-label" title="AI Inference Engine">Engine:</label>
+                        <select id="engine-select" class="engine-select" aria-label="Inference Engine">
+                            <option value="meta">Meta Model API · Muse Spark 1.3</option>
+                            <option value="partner">Baseten · Muse Spark Open</option>
+                        </select>
+                    </div>
                     <button id="how-it-works-btn" class="how-it-works-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="View technical architecture">
                         <span aria-hidden="true">&#9432;</span> <span data-i18n="howItWorks">How it works</span>
                     </button>
@@ -501,6 +508,18 @@
                         <div class="tech-feature-item">
                             <strong>5. Audio Voice Transcription (Muse Voice Transcribe):</strong>
                             <p>Converts shopkeeper spoken Tamil and Tanglish voice notes into editable text via <code>muse-voice-transcribe-1.0</code> with vocabulary biasing (existing customer names) and <code>languageBias: ["Tamil"]</code>. Parsing is subsequently performed by <code>muse-spark-1.3</code> only after the owner reviews the transcript. Zero audio bytes stored on disk or DB.</p>
+                        </div>
+                    </section>
+
+                    <section class="modal-tech-section">
+                        <h4 class="tech-section-title tech-title-engine">&#9881; Inference Engine Selection</h4>
+                        <div class="tech-feature-item">
+                            <strong>1. Meta Model API (Default Engine):</strong>
+                            <p>Direct API using <code>muse-spark-1.3</code> for Tanglish text parsing, Ask balance queries, and reminder drafting. Notebook photo vision, <code>muse-voice-transcribe-1.0</code> speech recognition, and the autonomous collections agent run exclusively on Meta Model API.</p>
+                        </div>
+                        <div class="tech-feature-item">
+                            <strong>2. Baseten · Muse Spark Open (Partner Engine):</strong>
+                            <p>Meta's open-weight <code>meta-models/muse-spark-open-1026</code> hosted on Baseten's serverless inference infrastructure. Used for Tanglish text parsing, Ask balance queries, and reminder drafting. Retains identical tool-calling schemas and safety verification. Both engines share the same rate limits and daily live-call budget.</p>
                         </div>
                     </section>
 

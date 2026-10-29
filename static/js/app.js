@@ -336,8 +336,31 @@
         micBtn: document.getElementById("mic-btn"),
         voiceCancelBtn: document.getElementById("voice-cancel-btn"),
         voiceNoteBanner: document.getElementById("voice-note-banner"),
-        closeVoiceNoteBtn: document.getElementById("close-voice-note-btn")
+        closeVoiceNoteBtn: document.getElementById("close-voice-note-btn"),
+        // Engine Selector
+        engineSelect: document.getElementById("engine-select")
     };
+
+    function getSelectedEngine() {
+        if (elements.engineSelect) {
+            return elements.engineSelect.value || "meta";
+        }
+        return localStorage.getItem("kadai_khata_engine") || "meta";
+    }
+
+    function initEngineSelector() {
+        if (!elements.engineSelect) return;
+        const saved = localStorage.getItem("kadai_khata_engine") || "meta";
+        if (saved === "partner" || saved === "meta") {
+            elements.engineSelect.value = saved;
+        } else {
+            elements.engineSelect.value = "meta";
+        }
+        elements.engineSelect.addEventListener("change", () => {
+            const val = elements.engineSelect.value;
+            localStorage.setItem("kadai_khata_engine", val);
+        });
+    }
 
     let currentPhotoTotalCheck = null;
 
@@ -661,7 +684,10 @@
             const resp = await fetch("/api/parse/", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: text })
+                body: JSON.stringify({
+                    text: text,
+                    provider: getSelectedEngine()
+                })
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || "Parsing failed");
@@ -915,7 +941,7 @@
             const sourceBadge = document.createElement("span");
             const src = (draft.source_label || "mock").toLowerCase();
             sourceBadge.className = `badge badge-${src}`;
-            sourceBadge.textContent = src.toUpperCase();
+            sourceBadge.textContent = draft.badge_label || src.toUpperCase();
             badgesRow.appendChild(sourceBadge);
 
             // Match badge (exact match vs suggestion vs new)
@@ -1218,7 +1244,8 @@
                 body: JSON.stringify({
                     customer_id: activeCustomer.id,
                     language: lang,
-                    tone: tone
+                    tone: tone,
+                    provider: getSelectedEngine()
                 })
             });
             const data = await resp.json();
@@ -1237,7 +1264,7 @@
             // Source Label
             const src = (data.source_label || "mock").toLowerCase();
             elements.reminderSourceBadge.className = `badge badge-${src}`;
-            elements.reminderSourceBadge.textContent = src.toUpperCase();
+            elements.reminderSourceBadge.textContent = data.badge_label || src.toUpperCase();
 
             // WhatsApp link (wa.me) or copy button
             if (data.whatsapp_url) {
@@ -1281,7 +1308,10 @@
             const resp = await fetch("/api/ask/", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ question: q }),
+                body: JSON.stringify({
+                    question: q,
+                    provider: getSelectedEngine()
+                }),
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || "Failed to get answer");
@@ -1289,7 +1319,7 @@
             elements.askAnswerText.textContent = data.answer;
             const src = (data.source_label || "mock").toLowerCase();
             elements.askSourceBadge.className = `badge badge-${src}`;
-            elements.askSourceBadge.textContent = src.toUpperCase();
+            elements.askSourceBadge.textContent = data.badge_label || src.toUpperCase();
             elements.askVerifiedBadge.style.display = data.verified ? "inline-block" : "none";
             elements.askResultBox.style.display = "block";
         } catch (err) {
@@ -2120,6 +2150,7 @@
 
     // --- Init ---
     function init() {
+        initEngineSelector();
         applyTranslations();
         setupEventListeners();
         loadCustomers();
