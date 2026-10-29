@@ -49,6 +49,8 @@ def check_rate_limit(request: HttpRequest, action: str, limit: Optional[int] = N
             limit = getattr(settings, "DEMO_RATE_LIMIT_AGENT", 3)
         elif action == "reminder":
             limit = getattr(settings, "DEMO_RATE_LIMIT_REMINDER", 20)
+        elif action in ("voice", "transcribe"):
+            limit = getattr(settings, "DEMO_RATE_LIMIT_VOICE", 10)
         else:
             limit = 20
 
@@ -70,6 +72,8 @@ def check_rate_limit(request: HttpRequest, action: str, limit: Optional[int] = N
             "photo": "You have reached the demo limit of 5 notebook photos per hour. Please wait a little while before trying again.",
             "agent": "You have reached the demo limit of 3 collections reviews per hour. Please wait a little while before trying again.",
             "reminder": "You have reached the demo limit of 20 reminders per hour. Please wait a little while before trying again.",
+            "voice": "You have reached the demo limit of 10 voice transcriptions per hour. Please wait a little while before trying again.",
+            "transcribe": "You have reached the demo limit of 10 voice transcriptions per hour. Please wait a little while before trying again.",
         }
         user_msg = friendly_messages.get(
             action,

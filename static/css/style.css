@@ -596,35 +596,98 @@ body {
     font-size: 16px;
 }
 
-/* Mic Button Placeholder (Coming Soon) */
+/* Mic Button */
 .mic-btn {
     min-height: 48px;
     min-width: 48px;
     border-radius: var(--radius-md);
-    border: 1px dashed #cbd5e1;
-    background: #f1f5f9;
-    color: #94a3b8;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-primary);
     position: relative;
-    cursor: not-allowed;
+    cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 2px 4px;
+    transition: all var(--transition-fast);
+}
+
+.mic-btn:hover:not(:disabled) {
+    background: var(--surface-hover);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.mic-btn.recording {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #dc2626;
+    animation: pulse-mic 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse-mic {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+    }
 }
 
 .mic-icon {
-    font-size: 16px;
+    font-size: 18px;
 }
 
-.mic-tooltip {
-    font-size: 9px;
-    font-weight: 700;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    line-height: 1;
-    margin-top: 2px;
+/* Voice Note Review Banner */
+.voice-note-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: #166534;
+    animation: fadeIn var(--transition-normal);
+}
+
+.voice-note-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.voice-note-icon {
+    font-size: 16px;
+    color: #15803d;
+}
+
+.voice-note-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.voice-note-body strong {
+    font-weight: 600;
+}
+
+.voice-note-disclaimer {
+    font-size: 0.75rem;
+    color: #16a34a;
+    margin-top: 1px;
+}
+
+.voice-note-close {
+    background: none;
+    border: none;
+    color: #166534;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
 }
 
 /* Confirm Cards Section */

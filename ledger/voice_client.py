@@ -1,4 +1,5 @@
 import glob
+import io
 import json
 import os
 import shutil
@@ -244,43 +245,87 @@ def build_transcribe_payload(
     return payload
 
 
-def transcribe_audio_file(
-    wav_path: Union[str, Path],
+def validate_wav_bytes(audio_bytes: bytes) -> Tuple[float, int, int, int]:
+    """Validate in-memory WAV bytes.
+
+    Requirements:
+    - Accepts only mono 16-bit PCM WAV at 16 kHz or 24 kHz.
+    - Duration cannot exceed VOICE_MAX_SECONDS.
+    - Size cannot exceed VOICE_MAX_BYTES.
+
+    Returns (duration_seconds, nchannels, sampwidth, framerate).
+    Raises VoiceBadRequestError on invalid structure or violated limits.
+    """
+    max_bytes = getattr(settings, "VOICE_MAX_BYTES", 2000000)
+    if len(audio_bytes) > max_bytes:
+        raise VoiceBadRequestError(
+            f"Audio file size exceeds maximum limit of {max_bytes} bytes ({len(audio_bytes)} bytes received)."
+        )
+
+    if len(audio_bytes) < 44:
+        raise VoiceBadRequestError("Audio file is too small to contain a valid WAV header.")
+
+    try:
+        with wave.open(io.BytesIO(audio_bytes), "rb") as wf:
+            nchannels = wf.getnchannels()
+            sampwidth = wf.getsampwidth()
+            framerate = wf.getframerate()
+            nframes = wf.getnframes()
+    except Exception as exc:
+        raise VoiceBadRequestError(f"Invalid or corrupted WAV audio header: {exc}")
+
+    if nchannels != 1:
+        raise VoiceBadRequestError(f"Only mono WAV audio is supported (received {nchannels} channels).")
+    if sampwidth != 2:
+        raise VoiceBadRequestError(f"Only 16-bit PCM WAV audio is supported (received {sampwidth * 8}-bit).")
+    if framerate not in (16000, 24000):
+        raise VoiceBadRequestError(f"Only 16 kHz or 24 kHz sample rates are supported (received {framerate} Hz).")
+    if nframes <= 0:
+        raise VoiceBadRequestError("Audio file contains no audio frames (empty audio).")
+
+    duration = round(nframes / float(framerate), 2)
+    max_sec = getattr(settings, "VOICE_MAX_SECONDS", 20.0)
+    if duration > max_sec:
+        raise VoiceBadRequestError(f"Audio duration exceeds maximum allowed limit of {max_sec}s ({duration:.1f}s).")
+
+    return duration, nchannels, sampwidth, framerate
+
+
+def transcribe_audio_bytes(
+    audio_bytes: bytes,
+    filename: str = "voice.wav",
     file_label: str = "",
     expected_text: str = "",
-    variation: str = "no_hints",
+    variation: str = "default",
     language_bias: Optional[List[str]] = None,
     keywords: Optional[List[str]] = None,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
-    timeout: float = 60.0,
+    timeout: Optional[float] = None,
     session: Optional[requests.Session] = None,
     mock_mode: bool = False,
 ) -> VoiceTranscribeResult:
-    """Call Meta Muse Voice Transcribe one-shot endpoint POST /asr/transcribe.
+    """Call Meta Muse Voice Transcribe one-shot endpoint POST /asr/transcribe with in-memory bytes.
 
+    Audio bytes are held in memory only and never written to disk or database.
     Never logs or exposes the API key.
     """
-    wav_path = Path(wav_path)
-    if not wav_path.exists():
-        raise FileNotFoundError(f"WAV audio file not found: {wav_path}")
-
-    audio_seconds = get_audio_duration_seconds(wav_path)
-    estimated_cost = calculate_cost_at_18_cents_per_hour(audio_seconds)
+    duration, _, _, _ = validate_wav_bytes(audio_bytes)
+    estimated_cost = calculate_cost_at_18_cents_per_hour(duration)
 
     if mock_mode:
-        # Deterministic mock result for offline testing
-        script = detect_script(expected_text)
+        script_text = expected_text or "Ravi 450 udhaar"
+        script = detect_script(script_text)
         return VoiceTranscribeResult(
-            file_label=file_label or wav_path.stem,
+            file_label=file_label or "in_memory_audio",
             expected_text=expected_text,
-            transcript=expected_text,
+            transcript=script_text,
             script=script,
             latency_ms=120.0,
-            audio_seconds=audio_seconds,
+            audio_seconds=duration,
             estimated_cost=estimated_cost,
             session_id="mock_session_123",
-            raw_response={"transcript": expected_text, "session_id": "mock_session_123"},
+            raw_response={"transcript": script_text, "session_id": "mock_session_123"},
             variation=variation,
         )
 
@@ -301,17 +346,20 @@ def transcribe_audio_file(
     ).rstrip("/")
     endpoint_url = f"{resolved_base_url}/asr/transcribe"
 
+    resolved_timeout = (
+        timeout
+        if timeout is not None
+        else getattr(settings, "META_VOICE_TIMEOUT_SECONDS", 60.0)
+    )
+
     req_payload = build_transcribe_payload(
         language_bias=language_bias,
         keywords=keywords,
     )
 
-    with open(wav_path, "rb") as af:
-        audio_bytes = af.read()
-
     files = {
         "request": (None, json.dumps(req_payload), "application/json"),
-        "audio": (wav_path.name, audio_bytes, "audio/wav"),
+        "audio": (filename, audio_bytes, "audio/wav"),
     }
     headers = {
         "Authorization": f"Bearer {resolved_key}",
@@ -325,10 +373,10 @@ def transcribe_audio_file(
             endpoint_url,
             headers=headers,
             files=files,
-            timeout=timeout,
+            timeout=resolved_timeout,
         )
     except requests.exceptions.Timeout as exc:
-        raise VoiceServerError(f"ASR transcribe request timed out after {timeout}s: {exc}") from exc
+        raise VoiceServerError(f"ASR transcribe request timed out after {resolved_timeout}s: {exc}") from exc
     except requests.exceptions.RequestException as exc:
         raise VoiceServerError(f"ASR transcribe network error: {exc}") from exc
 
@@ -367,14 +415,52 @@ def transcribe_audio_file(
     script = detect_script(transcript)
 
     return VoiceTranscribeResult(
-        file_label=file_label or wav_path.stem,
+        file_label=file_label or filename,
         expected_text=expected_text,
         transcript=transcript,
         script=script,
         latency_ms=latency_ms,
-        audio_seconds=audio_seconds,
+        audio_seconds=duration,
         estimated_cost=estimated_cost,
         session_id=session_id,
         raw_response=data,
         variation=variation,
     )
+
+
+def transcribe_audio_file(
+    wav_path: Union[str, Path],
+    file_label: str = "",
+    expected_text: str = "",
+    variation: str = "no_hints",
+    language_bias: Optional[List[str]] = None,
+    keywords: Optional[List[str]] = None,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+    timeout: float = 60.0,
+    session: Optional[requests.Session] = None,
+    mock_mode: bool = False,
+) -> VoiceTranscribeResult:
+    """Call Meta Muse Voice Transcribe one-shot endpoint POST /asr/transcribe from file."""
+    wav_path = Path(wav_path)
+    if not wav_path.exists():
+        raise FileNotFoundError(f"WAV audio file not found: {wav_path}")
+
+    with open(wav_path, "rb") as af:
+        audio_bytes = af.read()
+
+    return transcribe_audio_bytes(
+        audio_bytes=audio_bytes,
+        filename=wav_path.name,
+        file_label=file_label or wav_path.stem,
+        expected_text=expected_text,
+        variation=variation,
+        language_bias=language_bias,
+        keywords=keywords,
+        api_key=api_key,
+        base_url=base_url,
+        timeout=timeout,
+        session=session,
+        mock_mode=mock_mode,
+    )
+

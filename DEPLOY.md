@@ -77,8 +77,13 @@ All environment variables use placeholder values below. Never commit real keys.
 | `DEMO_DAILY_LIVE_CALLS` | Optional | `300` | Global daily live Meta API request budget (resets at UTC midnight). |
 | `DEMO_RATE_LIMIT_TEXT` | Optional | `20` | Maximum text parse / ask transactions per client IP per hour. |
 | `DEMO_RATE_LIMIT_PHOTO` | Optional | `5` | Maximum notebook photo uploads per client IP per hour. |
+| `DEMO_RATE_LIMIT_VOICE` | Optional | `10` | Maximum speech-to-text transcriptions per client IP per hour. |
 | `DEMO_RATE_LIMIT_AGENT` | Optional | `3` | Maximum daily collections agent reviews per client IP per hour. |
 | `DEMO_RATE_LIMIT_REMINDER` | Optional | `20` | Maximum reminder drafts per client IP per hour. |
+| `VOICE_LANGUAGE_BIAS` | Optional | `"Tamil"` | Target language bias for Meta Muse Voice Transcribe. Comma-separated. |
+| `VOICE_MAX_SECONDS` | Optional | `20` | Maximum recording duration in seconds accepted for voice upload. |
+| `VOICE_MAX_BYTES` | Optional | `2000000` | Maximum raw audio payload size in bytes (2 MB). |
+| `META_VOICE_TIMEOUT_SECONDS` | Optional | `60.0` | Timeout in seconds for Meta Muse Voice Transcribe API calls. |
 | `MODEL_API_KEY` | Required for live | `"LLM\|numeric_id\|secret_token"` | Meta Model API authentication key via OpenAI SDK. Enclose in quotes. |
 | `META_BASE_URL` | Optional | `https://api.meta.ai/v1` | Base URL for the OpenAI-compatible Meta completions endpoint. |
 | `META_MODEL` | Optional | `muse-spark-1.3` | Model identifier for text, tool calling, and multimodal vision. |

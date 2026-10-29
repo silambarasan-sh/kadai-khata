@@ -13,6 +13,7 @@ Provides endpoints for:
 
 import json
 from decimal import Decimal
+from django.conf import settings
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -27,6 +28,15 @@ from .services import (
     get_customer_timeline,
     list_customers_with_balance,
     reverse_entry,
+)
+from .voice_client import (
+    validate_wav_bytes,
+    transcribe_audio_bytes,
+    VoiceBadRequestError,
+    VoiceAuthenticationError,
+    VoiceRateLimitError,
+    VoiceServerError,
+    VoiceClientError,
 )
 
 
@@ -576,6 +586,83 @@ def api_parse_photo(request: HttpRequest) -> JsonResponse:
         "source_label": result.source_label,
         "latency_ms": result.latency_ms,
         "usage": result.usage_tokens,
+    })
+
+
+@csrf_exempt
+@require_POST
+def api_transcribe(request: HttpRequest) -> JsonResponse:
+    """Endpoint for audio transcription via Meta Muse Voice Transcribe.
+
+    Held in memory only: audio bytes are never written to disk or database.
+    """
+    from .demo_guards import check_rate_limit, is_daily_budget_exceeded, increment_daily_live_calls
+    rate_err = check_rate_limit(request, "voice")
+    if rate_err:
+        return rate_err
+
+    if is_daily_budget_exceeded():
+        return _json_error(
+            "Demo budget reached - voice transcription is temporarily paused to conserve demo credits.",
+            status=200,
+        )
+
+    if "audio" not in request.FILES:
+        return _json_error("Multipart field 'audio' is required.", status=400)
+
+    uploaded_file = request.FILES["audio"]
+    audio_bytes = uploaded_file.read()
+
+    try:
+        duration, nchannels, sampwidth, framerate = validate_wav_bytes(audio_bytes)
+    except VoiceBadRequestError as exc:
+        return _json_error(str(exc), status=400)
+    except Exception as exc:
+        return _json_error(f"Invalid audio format: {exc}", status=400)
+
+    # Keywords = names of existing customers only (max 50, no phone numbers, no balances)
+    from .models import Customer
+    customer_names = list(Customer.objects.values_list("name", flat=True)[:50])
+
+    # languageBias from settings
+    bias_str = getattr(settings, "VOICE_LANGUAGE_BIAS", "Tamil")
+    language_bias = [b.strip() for b in bias_str.split(",") if b.strip()] if bias_str else None
+
+    # Meta mode: check if mock or live
+    req_mode = request.POST.get("mode") or request.GET.get("mode")
+    meta_mode = (req_mode or getattr(settings, "META_MODE", "mock")).strip().lower()
+    is_mock = meta_mode == "mock"
+
+    try:
+        res = transcribe_audio_bytes(
+            audio_bytes=audio_bytes,
+            filename=uploaded_file.name or "audio.wav",
+            language_bias=language_bias,
+            keywords=customer_names,
+            mock_mode=is_mock,
+        )
+    except VoiceBadRequestError as exc:
+        return _json_error(str(exc), status=400)
+    except VoiceAuthenticationError:
+        return _json_error("Voice transcription service authentication failed. Please check configuration.", status=503)
+    except VoiceRateLimitError:
+        return _json_error("Upstream speech-to-text rate limit exceeded. Please try again shortly.", status=429)
+    except (VoiceServerError, VoiceClientError):
+        return _json_error("Voice transcription service is temporarily unavailable. Please try again later.", status=502)
+    except Exception:
+        return _json_error("An unexpected error occurred during audio transcription.", status=500)
+
+    source_label = "mock" if is_mock else "live"
+    if not is_mock:
+        increment_daily_live_calls(1)
+
+    return JsonResponse({
+        "status": "ok",
+        "transcript": res.transcript,
+        "source_label": source_label,
+        "latency_ms": res.latency_ms,
+        "audio_seconds": res.audio_seconds,
+        "estimated_cost_usd": res.estimated_cost,
     })
 
 

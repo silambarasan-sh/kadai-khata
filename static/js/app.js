@@ -101,7 +101,19 @@
             useTamilName: "Use Tamil",
             tryThese: "Try these:",
             trySampleNotebook: "Try a sample notebook page",
-            howItWorks: "How it works"
+            howItWorks: "How it works",
+            voiceInput: "Voice input",
+            recordingVoice: "Listening... Speak now ({n}s)",
+            transcribingVoice: "Transcribing... ({n}s)",
+            checkWordsThenSend: "Check the words, then press Send",
+            voiceDisclaimer: "Voice is transcribed by Meta Muse Voice Transcribe; audio is not stored.",
+            voicePermissionDenied: "Microphone permission was denied. Please allow microphone access in your browser settings to use voice input.",
+            voiceNoMicrophone: "No microphone was detected on this device. Please connect a microphone and try again.",
+            voiceUnsupportedBrowser: "Voice recording is not supported in this browser. Please use Chrome, Edge, or Safari.",
+            voiceTimeout: "Voice transcription timed out. Please check network connection and try again.",
+            voiceRateLimit: "Hourly voice limit reached (10 per hour). Please try typing directly or wait a while.",
+            voiceBudgetReached: "Demo budget reached - voice transcription is temporarily paused to conserve demo credits.",
+            voiceCancelled: "Voice recording cancelled."
         },
         ta: {
             appTitle: "கடை கணக்கு",
@@ -195,7 +207,19 @@
             useTamilName: "தமிழ் பெயர்",
             tryThese: "உதாரணங்கள்:",
             trySampleNotebook: "மாதிரி நோட்புக் பக்கம்",
-            howItWorks: "எப்படி செயல்படுகிறது"
+            howItWorks: "எப்படி செயல்படுகிறது",
+            voiceInput: "குரல் உள்ளீடு",
+            recordingVoice: "கேட்கிறது... இப்போது பேசவும் ({n} வினாடிகள்)",
+            transcribingVoice: "உரையாக மாற்றப்படுகிறது... ({n} வினாடிகள்)",
+            checkWordsThenSend: "வார்த்தைகளை சரிபார்த்து, பின்னர் Send பட்டனை அழுத்தவும்",
+            voiceDisclaimer: "குரல் Meta Muse Voice Transcribe மூலம் மாற்றப்படுகிறது; ஆடியோ சேமிக்கப்படுவதில்லை.",
+            voicePermissionDenied: "மைக்ரோஃபோன் அனுமதி மறுக்கப்பட்டது. குரல் உள்ளீட்டைப் பயன்படுத்த உலாவி அமைப்புகளில் மைக்கை அனுமதிக்கவும்.",
+            voiceNoMicrophone: "மைக்ரோஃபோன் கண்டறியப்படவில்லை. மைக்கை இணைத்து மீண்டும் முயற்சிக்கவும்.",
+            voiceUnsupportedBrowser: "இந்த உலாவியில் குரல் பதிவு ஆதரிக்கப்படவில்லை. Chrome, Edge அல்லது Safari பயன்படுத்தவும்.",
+            voiceTimeout: "குரல் மாற்றம் காலாவதியானது. இணைய இணைப்பை சரிபார்த்து மீண்டும் முயற்சிக்கவும்.",
+            voiceRateLimit: "குரல் வரம்பு முடிந்தது (ஒரு மணி நேரத்திற்கு 10). நேரடியாக தட்டச்சு செய்யவும் அல்லது சிறிது நேரம் காத்திருக்கவும்.",
+            voiceBudgetReached: "டெமோ பட்ஜெட் முடிந்தது - குரல் பதிவு தற்காலிகமாக நிறுத்தப்பட்டுள்ளது.",
+            voiceCancelled: "குரல் பதிவு ரத்து செய்யப்பட்டது."
         }
     };
 
@@ -307,7 +331,12 @@
         howItWorksBtn: document.getElementById("how-it-works-btn"),
         howItWorksModal: document.getElementById("how-it-works-modal"),
         closeHowItWorksBtn: document.getElementById("close-how-it-works-btn"),
-        trySampleNotebookBtn: document.getElementById("try-sample-notebook-btn")
+        trySampleNotebookBtn: document.getElementById("try-sample-notebook-btn"),
+        // Voice Elements
+        micBtn: document.getElementById("mic-btn"),
+        voiceCancelBtn: document.getElementById("voice-cancel-btn"),
+        voiceNoteBanner: document.getElementById("voice-note-banner"),
+        closeVoiceNoteBtn: document.getElementById("close-voice-note-btn")
     };
 
     let currentPhotoTotalCheck = null;
@@ -1585,6 +1614,342 @@
         }
     }
 
+    // --- Web Audio Recording & 16kHz Mono 16-bit WAV Encoding ---
+    class AudioRecorder {
+        constructor() {
+            this.audioContext = null;
+            this.mediaStream = null;
+            this.sourceNode = null;
+            this.processorNode = null;
+            this.recordedSamples = [];
+            this.targetSampleRate = 16000;
+            this.isRecording = false;
+        }
+
+        async start() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("UNSUPPORTED_BROWSER");
+            }
+            try {
+                this.mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                    }
+                });
+            } catch (err) {
+                if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                    throw new Error("PERMISSION_DENIED");
+                } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+                    throw new Error("NO_MICROPHONE");
+                } else {
+                    throw err;
+                }
+            }
+
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) {
+                throw new Error("UNSUPPORTED_BROWSER");
+            }
+            this.audioContext = new AudioContextClass();
+            if (this.audioContext.state === "suspended") {
+                await this.audioContext.resume();
+            }
+
+            this.recordedSamples = [];
+            this.sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);
+
+            // Buffer size 4096, 1 input channel, 1 output channel
+            this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
+            this.processorNode.onaudioprocess = (e) => {
+                if (!this.isRecording) return;
+                const channelData = e.inputBuffer.getChannelData(0);
+                this.recordedSamples.push(new Float32Array(channelData));
+            };
+
+            this.sourceNode.connect(this.processorNode);
+            this.processorNode.connect(this.audioContext.destination);
+            this.isRecording = true;
+        }
+
+        stop() {
+            this.isRecording = false;
+            if (this.processorNode) {
+                this.processorNode.disconnect();
+                this.processorNode.onaudioprocess = null;
+            }
+            if (this.sourceNode) {
+                this.sourceNode.disconnect();
+            }
+            if (this.mediaStream) {
+                this.mediaStream.getTracks().forEach(track => track.stop());
+            }
+            const ctxRate = this.audioContext ? this.audioContext.sampleRate : 48000;
+            if (this.audioContext && this.audioContext.state !== "closed") {
+                this.audioContext.close().catch(() => {});
+            }
+
+            let totalLength = 0;
+            for (const chunk of this.recordedSamples) {
+                totalLength += chunk.length;
+            }
+            const mergedSamples = new Float32Array(totalLength);
+            let offset = 0;
+            for (const chunk of this.recordedSamples) {
+                mergedSamples.set(chunk, offset);
+                offset += chunk.length;
+            }
+
+            const resampled = this.downsample(mergedSamples, ctxRate, this.targetSampleRate);
+            return this.encodeWAV(resampled, this.targetSampleRate);
+        }
+
+        cancel() {
+            this.isRecording = false;
+            if (this.processorNode) {
+                this.processorNode.disconnect();
+                this.processorNode.onaudioprocess = null;
+            }
+            if (this.sourceNode) {
+                this.sourceNode.disconnect();
+            }
+            if (this.mediaStream) {
+                this.mediaStream.getTracks().forEach(track => track.stop());
+            }
+            if (this.audioContext && this.audioContext.state !== "closed") {
+                this.audioContext.close().catch(() => {});
+            }
+            this.recordedSamples = [];
+        }
+
+        downsample(buffer, fromRate, toRate) {
+            if (fromRate === toRate) return buffer;
+            if (fromRate < toRate) return buffer;
+            const sampleRateRatio = fromRate / toRate;
+            const newLength = Math.round(buffer.length / sampleRateRatio);
+            const result = new Float32Array(newLength);
+            let offsetResult = 0;
+            let offsetBuffer = 0;
+            while (offsetResult < result.length) {
+                const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+                let accum = 0, count = 0;
+                for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+                    accum += buffer[i];
+                    count++;
+                }
+                result[offsetResult] = count > 0 ? (accum / count) : 0;
+                offsetResult++;
+                offsetBuffer = nextOffsetBuffer;
+            }
+            return result;
+        }
+
+        encodeWAV(samples, sampleRate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+
+            this.writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            this.writeString(view, 8, 'WAVE');
+            this.writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); // PCM
+            view.setUint16(22, 1, true); // mono
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true); // 16-bit
+            this.writeString(view, 36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+
+            let offset = 44;
+            for (let i = 0; i < samples.length; i++, offset += 2) {
+                let s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+    }
+
+    let audioRecorder = null;
+    let isRecordingVoice = false;
+    let voiceCountdownTimer = null;
+    let voiceSecondsLeft = 20;
+    let voiceTranscribeTimer = null;
+    let voiceTranscribeSeconds = 0;
+
+    async function startVoiceRecording() {
+        if (isRecordingVoice || isParsing) return;
+        audioRecorder = new AudioRecorder();
+        try {
+            await audioRecorder.start();
+        } catch (err) {
+            if (err.message === "PERMISSION_DENIED") {
+                showToast(t("voicePermissionDenied"), "warning");
+            } else if (err.message === "NO_MICROPHONE") {
+                showToast(t("voiceNoMicrophone"), "warning");
+            } else if (err.message === "UNSUPPORTED_BROWSER") {
+                showToast(t("voiceUnsupportedBrowser"), "warning");
+            } else {
+                showToast(err.message || t("errorNetwork"), "error");
+            }
+            return;
+        }
+
+        isRecordingVoice = true;
+        voiceSecondsLeft = 20;
+        if (elements.micBtn) {
+            elements.micBtn.classList.add("recording");
+            elements.micBtn.setAttribute("aria-label", "Stop recording");
+        }
+        if (elements.inputStatusBar) {
+            elements.inputStatusBar.style.display = "flex";
+            if (elements.photoCancelBtn) elements.photoCancelBtn.style.display = "none";
+            if (elements.voiceCancelBtn) elements.voiceCancelBtn.style.display = "inline-block";
+            updateRecordingCountdown();
+        }
+
+        voiceCountdownTimer = setInterval(() => {
+            voiceSecondsLeft--;
+            if (voiceSecondsLeft <= 0) {
+                stopVoiceRecordingAndUpload();
+            } else {
+                updateRecordingCountdown();
+            }
+        }, 1000);
+    }
+
+    function updateRecordingCountdown() {
+        if (elements.inputStatusText) {
+            elements.inputStatusText.textContent = t("recordingVoice").replace("{n}", voiceSecondsLeft);
+        }
+    }
+
+    function cancelVoiceRecording() {
+        if (!isRecordingVoice && !voiceTranscribeTimer) return;
+        clearInterval(voiceCountdownTimer);
+        clearInterval(voiceTranscribeTimer);
+        voiceCountdownTimer = null;
+        voiceTranscribeTimer = null;
+        if (audioRecorder) {
+            audioRecorder.cancel();
+            audioRecorder = null;
+        }
+        isRecordingVoice = false;
+        resetVoiceUI();
+        showToast(t("voiceCancelled"), "info");
+    }
+
+    async function stopVoiceRecordingAndUpload() {
+        if (!isRecordingVoice) return;
+        clearInterval(voiceCountdownTimer);
+        voiceCountdownTimer = null;
+        isRecordingVoice = false;
+
+        let wavBlob = null;
+        try {
+            wavBlob = audioRecorder.stop();
+        } catch (e) {
+            resetVoiceUI();
+            showToast("Failed to process recorded audio.", "error");
+            return;
+        }
+
+        // Start transcribing phase
+        if (elements.micBtn) {
+            elements.micBtn.classList.remove("recording");
+            elements.micBtn.disabled = true;
+        }
+        if (elements.voiceCancelBtn) {
+            elements.voiceCancelBtn.style.display = "none";
+        }
+
+        voiceTranscribeSeconds = 0;
+        if (elements.inputStatusText) {
+            elements.inputStatusText.textContent = t("transcribingVoice").replace("{n}", voiceTranscribeSeconds);
+        }
+        voiceTranscribeTimer = setInterval(() => {
+            voiceTranscribeSeconds++;
+            if (elements.inputStatusText) {
+                elements.inputStatusText.textContent = t("transcribingVoice").replace("{n}", voiceTranscribeSeconds);
+            }
+        }, 1000);
+
+        const formData = new FormData();
+        formData.append("audio", wavBlob, "voice_input.wav");
+
+        try {
+            const resp = await fetch("/api/transcribe/", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": getCsrfToken()
+                },
+                body: formData
+            });
+
+            clearInterval(voiceTranscribeTimer);
+            voiceTranscribeTimer = null;
+
+            if (resp.status === 429) {
+                resetVoiceUI();
+                showToast(t("voiceRateLimit"), "warning");
+                return;
+            }
+
+            const data = await resp.json();
+            resetVoiceUI();
+
+            if (data.status === "error") {
+                if (data.error && data.error.includes("Demo budget reached")) {
+                    showToast(t("voiceBudgetReached"), "warning");
+                } else {
+                    showToast(data.error || "Failed to transcribe audio.", "error");
+                }
+                return;
+            }
+
+            if (data.transcript && elements.sentenceInput) {
+                elements.sentenceInput.value = data.transcript;
+                elements.sentenceInput.focus();
+
+                // Show review notice
+                if (elements.voiceNoteBanner) {
+                    elements.voiceNoteBanner.style.display = "flex";
+                }
+            }
+        } catch (err) {
+            clearInterval(voiceTranscribeTimer);
+            voiceTranscribeTimer = null;
+            resetVoiceUI();
+            if (err.name === "AbortError" || (err.message && err.message.includes("timeout"))) {
+                showToast(t("voiceTimeout"), "warning");
+            } else {
+                showToast(t("errorNetwork"), "error");
+            }
+        }
+    }
+
+    function resetVoiceUI() {
+        if (elements.micBtn) {
+            elements.micBtn.classList.remove("recording");
+            elements.micBtn.disabled = false;
+            elements.micBtn.setAttribute("aria-label", t("voiceInput"));
+        }
+        if (elements.voiceCancelBtn) {
+            elements.voiceCancelBtn.style.display = "none";
+        }
+        if (elements.inputStatusBar) {
+            elements.inputStatusBar.style.display = "none";
+        }
+    }
+
     // --- Event Listeners ---
     function setupEventListeners() {
         // Tab Navigation
@@ -1726,6 +2091,29 @@
             }
             elements.howItWorksModal.addEventListener("click", (e) => {
                 if (e.target === elements.howItWorksModal) closeModal();
+            });
+        }
+
+        // Voice Input Listeners
+        if (elements.micBtn) {
+            elements.micBtn.addEventListener("click", () => {
+                if (isRecordingVoice) {
+                    stopVoiceRecordingAndUpload();
+                } else {
+                    startVoiceRecording();
+                }
+            });
+        }
+
+        if (elements.voiceCancelBtn) {
+            elements.voiceCancelBtn.addEventListener("click", () => {
+                cancelVoiceRecording();
+            });
+        }
+
+        if (elements.closeVoiceNoteBtn && elements.voiceNoteBanner) {
+            elements.closeVoiceNoteBtn.addEventListener("click", () => {
+                elements.voiceNoteBanner.style.display = "none";
             });
         }
     }

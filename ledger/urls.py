@@ -17,5 +17,6 @@ urlpatterns = [
     path("api/agent/approve/", views.api_agent_approve, name="api_agent_approve"),
     path("api/ask/", views.api_ask, name="api_ask"),
     path("api/parse-photo/", views.api_parse_photo, name="api_parse_photo"),
+    path("api/transcribe/", views.api_transcribe, name="api_transcribe"),
 ]
 

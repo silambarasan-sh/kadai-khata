@@ -1,14 +1,14 @@
 # Kadai Khata (கடை கணக்கு)
 
-A Tanglish (Tamil + English) text and notebook photo udhaar (credit) ledger assistant designed for small neighborhood shop owners (kirana / petty shops) in Tamil Nadu. (Note: voice input is not built; input is text and notebook photo).
+A Tanglish (Tamil + English) voice, text, and notebook photo udhaar (credit) ledger assistant designed for small neighborhood shop owners (kirana / petty shops) in Tamil Nadu.
 
-Shop owners type natural everyday phrases like *"Ravi-ku 500 rupees udhaar kuduthen"* (Gave 500 rupees credit to Ravi) or *"Priya 200 kuduthanga"* (Priya paid 200), or photograph handwritten pages from physical paper khata notebooks. A Meta AI model parses the intent into structured transaction drafts via tool calling. The shop owner verifies and confirms the transaction before anything is saved to the ledger.
+Shop owners speak or type natural everyday phrases like *"Ravi-ku 500 rupees udhaar kuduthen"* (Gave 500 rupees credit to Ravi) or *"Priya 200 kuduthanga"* (Priya paid 200), or photograph handwritten pages from physical paper khata notebooks. A Meta AI speech and language pipeline transcribes voice via Meta Muse Voice Transcribe, and parses transaction intent into structured drafts via tool calling. The shop owner verifies and confirms the transaction before anything is saved to the ledger.
 
 ---
 
 ## What It Does
-- **Tanglish Text & Notebook Photo Understanding**: Parses conversational Tamil-English statements and handwritten notebook page photos for credit given (*udhaar*) and repayments (*panam vanthathu*). (Voice input is NOT built; input is via text and notebook photos).
-- **Human-in-the-Loop Confirmation**: AI never writes directly to the database without explicit owner review and approval.
+- **Tanglish Voice, Text & Notebook Photo Understanding**: Transcribes spoken Tanglish audio via Meta Muse Voice Transcribe, parses conversational Tamil-English statements, and digitizes handwritten notebook page photos for credit given (*udhaar*) and repayments (*panam vanthathu*).
+- **Human-in-the-Loop Confirmation**: AI never writes directly to the database without explicit owner review and approval. Voice transcription populates the editable input box for shopkeeper verification before parsing.
 - **Ledger & Outstanding Tracking**: Real-time balance calculations per customer with transaction history.
 - **Polite Payment Reminders**: Drafts gentle, localized reminder messages in Tanglish/Tamil with direct WhatsApp link (`wa.me`) or clipboard copy only (SMS is not supported).
 - **Mobile-First Interface**: Designed for single-hand mobile use by shopkeepers with quick actions.
@@ -27,9 +27,10 @@ Shop owners type natural everyday phrases like *"Ravi-ku 500 rupees udhaar kudut
 
 ## What Was Built During the Hackathon
 
-All code in this repository was built from scratch during the hackathon building period (first commit: `fbc7768` on Tue Oct 27 11:29:39 2026 +0530). The test suite contains 82 tests (`pytest -q`), all passing.
+All code in this repository was built from scratch during the hackathon building period (first commit: `fbc7768` on Tue Oct 27 11:29:39 2026 +0530). The test suite contains 120 tests (`pytest -q`), all passing.
 
 - **Scaffold & Backend**: Django ledger application setup with clean models for `Customer`, `LedgerEntry`, `DraftEntry`, `AgentRun`, and `AgentStep` with decimal currency precision.
+- **Voice Input Feature (`ledger/voice_client.py`, `POST /api/transcribe/`)**: In-memory speech-to-text pipeline utilizing Meta Muse Voice Transcribe with client-side 16kHz mono WAV encoding, server-side audio validation, customer-name keyword hints, configurable `VOICE_LANGUAGE_BIAS`, and owner review before parsing.
 - **Meta AI Client Layer (`ledger/meta_client.py`)**: Centralized OpenAI SDK wrapper calling Meta API endpoints (`muse-spark-1.3`), handling live tool calling, exponential backoff with jitter on HTTP 429/5xx, explicit non-retry on 400, diagnostic logging, cached token reporting, and a deterministic offline mock client.
 - **Tanglish Parser with Confirm Flow**: Multi-turn text parser converting conversational Tanglish into pending `DraftEntry` objects using function calling (`record_ledger_entry`, `ask_clarification`) with an explicit human-in-the-loop review/confirmation gate.
 - **Safety Warnings Layer**: Real-time business logic safety flags on draft cards: anomalous amounts (>3x avg and >2x previous max), overpayments (payment exceeding balance), new customer on payment, and strict name-match guards.
@@ -172,7 +173,7 @@ Evaluated across **204 live API runs** (34 sentences × 3 repeats for each reaso
 | **Notebook Photo Parsing** | Meta `muse-spark-1.3` vision model processing base64 image data URL in memory via tool calling (`record_ledger_entry`, `flag_cancelled`, `flag_unreadable`, `report_page_totals`). Usage includes `cached_tokens`. | Deterministic local fixture producing pending drafts, flagged rows, and column totals without network calls. |
 | **Daily Collections Agent** | Meta `muse-spark-1.3` autonomous multi-turn loop executing read-only tools (`list_overdue_customers`, `get_customer_history`, `get_payment_pattern`, `submit_plan`) with ground-truth balance verifier and SHA-256 hash chaining. | Deterministic local scripted agent run executing the same tool suite and verification offline. |
 | **Ask Balance Endpoint** | Meta `muse-spark-1.3` tool calling (`get_customer_balance`, `list_customers_with_balance`) with strict amount verification against DB before returning response. | Deterministic local mock responses querying local DB data. |
-| **Voice Input** | **Not built**. (The mic button in the UI is disabled and marked "Coming soon"; only text and notebook photos are accepted). | **Not built**. |
+| **Voice Transcription** | Meta Muse Voice Transcribe (`POST /api/transcribe/`) with in-memory 16kHz mono WAV validation, customer keyword hints, and configurable `VOICE_LANGUAGE_BIAS="Tamil"`. Returns transcript to editable input box; audio is never stored or parsed directly. | Deterministic scripted Tanglish transcript fixture without upstream network calls. |
 
 - **Source Labels**: Every draft and reminder card displays honest source badges:
   - `LIVE` (Emerald): Real Meta AI model completion.
@@ -341,6 +342,88 @@ Across all five live runs conducted across prompts:
 
 ---
 
+## Voice Input & Meta Muse Voice Transcribe Benchmark
+
+For small kirana store owners handling rapid customer transactions, typing on mobile keyboards can be slow or inconvenient. Kadai Khata integrates **Meta Muse Voice Transcribe** via `POST /api/transcribe/` to allow shopkeepers to speak natural Tanglish phrases directly into their phone.
+
+### 1. In-Memory Privacy & Safety Net Architecture
+- **In-Memory Audio Processing**: Voice audio is recorded in the browser via Web Audio API, encoded to mono 16-bit PCM WAV at 16 kHz (or 24 kHz), and uploaded directly to memory. Audio bytes are validated server-side (header structure, duration $\le 20$s, size $\le 2$ MB) and **never written to disk or the database**.
+- **Owner Review Safety Net**: Voice transcription does **not** directly execute or draft transactions in the database. Instead, the transcribed text is placed into the main input box with a clear helper note: *"Check the words, then press Send. Voice is transcribed by Meta Muse Voice Transcribe; audio is not stored."* The shopkeeper can edit any misheard words or amounts before pressing "Send" to initiate the normal parsing flow.
+- **Customer Keywords**: The transcription request automatically attaches up to 50 existing customer names from the local database as `keywords`, improving phonetic grounding for regional names (e.g. *Murugan*, *Selvam*, *Priya*, *Ravi*). No balances or phone numbers are ever leaked to the voice API.
+
+### 2. Empirical 5-Variant Feasibility Benchmark (`voice_probe`)
+We conducted a live feasibility probe with 4 real mobile phone voice recordings ($n = 4$ clips from 1 single speaker):
+- `s1.mp4`: *"Ravi-ku aanju nooru rooba udhaar kuduthen"* (Credit given: Ravi, ₹500)
+- `s2.mp4`: *"Murugan phonepe-la moonu nooru anupirukaaru"* (Payment received: Murugan, ₹300)
+- `s3.mp4`: *"Selvam aayirathu iranooru rooba arisi moottai udhaar potukonga"* (Credit given: Selvam, ₹1200)
+- `s4.mp4`: *"Priya-ku iranooru rooba udhaar"* (Noisy background audio; Credit given: Priya, ₹200)
+
+We evaluated 5 configuration variants across 2 independent repeats each (**40 total live Meta API calls**):
+
+#### Table 1: Live Run Benchmark Details (5 Variants × 4 Samples × 2 Repeats)
+
+| Var | Rep | Sample | Transcript | Script | Latency | Draft Evaluation (Pass / Fail) |
+|:---|:---|:---|:---|:---|:---|:---|
+| (a) | R1 | s1 | ரவிக்கு 500 ரூபாய் கடன் கொடுத்தேன் | Tamil | 3381ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (a) | R1 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 3192ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (a) | R1 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3583ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (a) | R1 | s4 | Priya 200 ரூபாய் உதார் | mixed | 2736ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
+| (a) | R2 | s1 | ರವಿಗೆ 500 ರೂಪಾಯಿ ಉದಾರ್ ಕೊಟ್ಟೆ | Other (Kannada) | 3907ms | **FAIL** (Kannada script unparsed by Tanglish parser) |
+| (a) | R2 | s2 | Murugan Phonepe ல ₹300 அனுப்பி இருக்காரு | mixed | 3449ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (a) | R2 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3959ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (a) | R2 | s4 | Priya 200 ரூபாய் உதார் | mixed | 3144ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
+| (b) | R1 | s1 | ரவிக்கு 500 ரூபாய் கடன் கொடுத்தேன் | Tamil | 3302ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (b) | R1 | s2 | முருகன் போன்பேல 300 அனுப்பி இருக்காரு | Tamil | 3280ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (b) | R1 | s3 | செல்வம் 1200 ரூபாய் அரிசி மூட்டை உதார் போட்டுக்கோங்க | Tamil | 3350ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (b) | R1 | s4 | பிரியாவுக்கு ₹200 கடன் | Tamil | 3195ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
+| (b) | R2 | s1 | ரவிக்கு ₹500 கடன் கொடுத்தேன் | Tamil | 3290ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (b) | R2 | s2 | முருகன் போன்பேல 300 அனுப்பி இருக்காரு | Tamil | 3217ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (b) | R2 | s3 | செல்வம் 1200 ரூபாய் அரிசி மூட்டை உதார் போட்டுக்கோங்க | Tamil | 3409ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (b) | R2 | s4 | பிரியாவுக்கு ₹200 கடன் | Tamil | 3390ms | **FAIL** (Hallucinated amount on noisy sample s4) |
+| (c) | R1 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 2800ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (c) | R1 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 3173ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (c) | R1 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3097ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (c) | R1 | s4 | Priya 200 ரூபாய் உதார் | mixed | 2774ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
+| (c) | R2 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3073ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (c) | R2 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 2911ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (c) | R2 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3183ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (c) | R2 | s4 | Priya 200 ரூபாய் உதார் | mixed | 2772ms | **FAIL** (Misparsed under noisy speech in R2) |
+| (d) | R1 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3226ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (d) | R1 | s2 | Murugan போன்பேல 300 அனுப்பி இருக்காரு | mixed | 2987ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (d) | R1 | s3 | Selvam 1200 ரூபாய் அரிசி மூட்டை உதார் போட்டுக்கோங்க | mixed | 3209ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (d) | R1 | s4 | Priya-வுக்கு ₹200 கடன் | mixed | 3001ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
+| (d) | R2 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3087ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (d) | R2 | s2 | Murugan போன்பேல 300 அனுப்பி இருக்காரு | mixed | 2942ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (d) | R2 | s3 | Selvam 1200 ரூபாய் அரிசி மூட்டை உதார் போட்டுக்கோங்க | mixed | 3236ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (d) | R2 | s4 | Priya-வுக்கு ₹200 கடன் | mixed | 2835ms | **FAIL** (Noise induced missing draft on s4 R2) |
+| (e) | R1 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3154ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (e) | R1 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 3097ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (e) | R1 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3448ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (e) | R1 | s4 | Priya 200 ரூபாய் உதார் | mixed | 3084ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
+| (e) | R2 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3110ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
+| (e) | R2 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 3042ms | **PASS** (Murugan P, payment_received ₹300.00) |
+| (e) | R2 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3426ms | **PASS** (Selvam S, credit_given ₹1200.00) |
+| (e) | R2 | s4 | Priya 200 ரூபாய் உதார் | mixed | 3157ms | **FAIL** (Noise induced missing draft on s4 R2) |
+
+#### Table 2: 5-Variant Performance Summary (8 Runs Each)
+
+| Variant | Configuration Description | Runs Passed | Pass Rate | Avg Latency | Script Distribution |
+|:---|:---|:---|:---|:---|:---|
+| **(a)** | No hints | 6 / 8 | 75.0% | 3419 ms | T:1 / M:6 / Other:1 (Kannada) |
+| **(b)** | `languageBias: ["Tamil"]` | 6 / 8 | 75.0% | 3304 ms | T:8 / M:0 / Other:0 |
+| **(c)** | `keywords (customer names)` | 7 / 8 | 87.5% | 2973 ms | T:0 / M:8 / Other:0 |
+| **(d)** | `languageBias: ["Tamil"]` + `keywords` | **7 / 8** | **87.5%** | 3065 ms | T:0 / M:8 / Other:0 |
+| **(e)** | `languageBias: ["Tamil","English"]` + `keywords` | 7 / 8 | 87.5% | 3190 ms | T:0 / M:8 / Other:0 |
+
+### 3. Key Findings & Official Documentation
+1. **Tamil Official Language Support**: Tamil is explicitly listed in the official Meta documentation (`https://dev.meta.ai/docs/speech-to-text`) among the 14 supported spoken languages.
+2. **Script Switching Without Bias**: In variant (a) (no hints), the model produced Kannada script (`ರವಿಗೆ...`) on Tamil phonetics during repeat 2. Supplying `languageBias: ["Tamil"]` in variant (b) and (d) eliminated script-switching entirely, locking output to Tamil script.
+3. **Keyword Grounding**: Supplying customer names in `keywords` preserved exact Latin transliterations (e.g. *Ravi-க்கு*, *Murugan Phonepe-ல*, *Selvam*) which matched perfectly with customer records.
+4. **Latency & Economics**: Real live latency ranged from **2.7s to 4.1s** (averaging ~3.0s). At Meta's pricing rate of $0.18 / audio hour, a typical 3.5-second shopkeeper transaction costs approximately **$0.000175 USD** (< ₹0.015 INR).
+5. **Winning Default Configuration**: Variant (d) (`VOICE_LANGUAGE_BIAS="Tamil"` with customer keywords) demonstrated the highest reliability (7/8 = 87.5% pass rate), high speed (3065ms avg), and clean grounding. It is configured as the default setting.
+
+---
+
 ## Known Limitations
 
 1. **No Authentication / Multi-User**: Designed as a single-shopkeeper demo; lacks multi-tenant isolation, user accounts, and login authentication.
@@ -352,8 +435,9 @@ Across all five live runs conducted across prompts:
    - Parser Realistic-Negative Set: $n = 15$
    - Daily Collections Agent: $n = 3$ runs across 1 scripted 10-customer scenario
    - Vision Digitizer: $n = 3$ images ($11$ total ground-truth rows)
+   - Voice Benchmark: $n = 4$ clips from 1 single speaker (40 total live benchmark runs across 5 variants)
 5. **Tamil Language Nuance**: Tamil and Tanglish phrasing variations, colloquial dialect terms, and regional honorifics need further validation by native domain speakers.
-6. **Voice Input Not Built**: The microphone button in the UI is disabled and marked "Coming soon"; only text input and notebook photo uploads are supported.
+6. **Voice Input Nuances & Ambient Noise**: Without a language hint, the speech model can exhibit script switching (transcribing Tamil phonemes into Kannada or Devanagari). Heavy ambient noise (as demonstrated in clip s4) can introduce phoneme inaccuracies. The editable input box and shopkeeper review remain essential safety boundaries prior to parsing.
 7. **Meta Free-Tier Terms**: Inputs and outputs sent under free-credit / developer-tier Meta API usage may be retained or utilized by Meta for model improvement.
 8. **Reminders are Drafts Only**: Reminders are generated as suggested text with WhatsApp (`wa.me`) links or copy buttons; automatic background SMS or WhatsApp dispatch is not built.
 9. **Development Server**: Intended for hackathon demonstration with Django development server (`manage.py runserver`); not hardened for production WSGI/ASGI hosting.

@@ -22,7 +22,6 @@ from ledger.voice_client import (
 )
 
 
-# Expected ground truth entries for accuracy validation
 EXPECTED_ENTRIES = {
     "s1": [
         {"customer": "Ravi", "kind": EntryKind.CREDIT_GIVEN.value, "amount": Decimal("500.00")}
@@ -40,8 +39,31 @@ EXPECTED_ENTRIES = {
 }
 
 
+def check_draft_match(d: Any, exp_spec: Dict[str, Any]) -> bool:
+    c_got = d.customer_name.strip().lower()
+    c_exp = exp_spec["customer"].strip().lower()
+    name_ok = (
+        c_got == c_exp
+        or c_got.startswith(c_exp)
+        or (c_exp == "murugan" and ("முருகன்" in c_got or "murugan" in c_got))
+    )
+    kind_ok = d.kind.strip().lower() == exp_spec["kind"].strip().lower()
+    amt_ok = abs(d.amount - exp_spec["amount"]) < Decimal("0.01")
+    return name_ok and kind_ok and amt_ok
+
+
+def evaluate_sample_run(drafts: List[Any], expected_specs: List[Dict[str, Any]]) -> Tuple[bool, str]:
+    if len(drafts) != len(expected_specs):
+        return False, f"Expected {len(expected_specs)} draft(s), got {len(drafts)}"
+    for idx, exp_spec in enumerate(expected_specs):
+        d = drafts[idx]
+        if not check_draft_match(d, exp_spec):
+            return False, f"Draft #{idx+1} mismatch: Got ({d.customer_name}, {d.kind}, ₹{d.amount}) vs Exp ({exp_spec['customer']}, {exp_spec['kind']}, ₹{exp_spec['amount']})"
+    return True, "Exact match"
+
+
 class Command(BaseCommand):
-    help = "Run voice feasibility probe using Meta Muse Voice Transcribe model on audio samples."
+    help = "Run voice feasibility probe using Meta Muse Voice Transcribe across 5 parameter variants."
 
     def write_out(self, msg: str = "", style_func=None):
         out_msg = style_func(msg) if style_func else msg
@@ -80,13 +102,18 @@ class Command(BaseCommand):
             help="Run in offline mock mode without calling live Meta API",
         )
         parser.add_argument(
+            "--repeats",
+            type=int,
+            default=2,
+            help="Number of repetitions per sample (default: 2)",
+        )
+        parser.add_argument(
             "--skip-parse",
             action="store_true",
             help="Skip passing transcripts through parse_text",
         )
 
     def handle(self, *args, **options):
-        # Configure stdout and stderr for UTF-8 on Windows
         try:
             if hasattr(sys.stdout, "reconfigure"):
                 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -98,6 +125,7 @@ class Command(BaseCommand):
         samples_dir = Path(options["samples_dir"])
         expected_path = samples_dir / "expected.txt"
         mock_mode = options.get("mock", False)
+        repeats = options.get("repeats", 2)
         skip_parse = options.get("skip_parse", False)
 
         if not expected_path.exists():
@@ -110,183 +138,185 @@ class Command(BaseCommand):
         temp_dir = Path(tempfile.gettempdir()) / "kadai_khata_voice_probe"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
-        self.write_out("=" * 80, style_func=self.style.MIGRATE_HEADING)
-        self.write_out(" Kadai Khata - Meta Muse Voice Transcribe Feasibility Probe", style_func=self.style.MIGRATE_HEADING)
-        self.write_out("=" * 80, style_func=self.style.MIGRATE_HEADING)
+        self.write_out("=" * 100, style_func=self.style.MIGRATE_HEADING)
+        self.write_out(" Kadai Khata - Muse Voice Transcribe 5-Variant Benchmark Probe", style_func=self.style.MIGRATE_HEADING)
+        self.write_out("=" * 100, style_func=self.style.MIGRATE_HEADING)
         self.write_out(f"Mode: {'MOCK (Offline)' if mock_mode else 'LIVE (Meta Model API)'}")
+        self.write_out(f"Repeats per sample: {repeats}")
         self.write_out(f"Samples directory: {samples_dir}")
-        self.write_out(f"Expected labels found: {list(expected_sentences.keys())}")
-        self.write_out(f"Extracted customer keywords: {customer_keywords}\n")
+        self.write_out(f"Expected labels: {list(expected_sentences.keys())}")
+        self.write_out(f"Customer keywords: {customer_keywords}\n")
 
-        # Step 2: Convert samples with ffmpeg to 24kHz mono 16-bit WAV
-        self.write_out("[Step 2] Converting audio samples to 24kHz mono 16-bit WAV in temp dir...", style_func=self.style.HTTP_INFO)
+        # Convert samples
+        self.write_out("[Audio Conversion] Converting samples to 24kHz mono 16-bit WAV...", style_func=self.style.HTTP_INFO)
         wav_files: Dict[str, Path] = {}
         for label in sorted(expected_sentences.keys()):
             src_mp4 = samples_dir / f"{label}.mp4"
             if not src_mp4.exists():
                 self.write_err(f"Audio file {src_mp4} not found, skipping.", style_func=self.style.WARNING)
                 continue
-
             wav_path = convert_audio_to_wav(src_mp4, output_dir=temp_dir)
             wav_files[label] = wav_path
             dur = get_audio_duration_seconds(wav_path)
-            self.write_out(f"  Converted {src_mp4.name} -> {wav_path.name} (Duration: {dur:.2f}s)")
+            self.write_out(f"  Converted {src_mp4.name} -> {wav_path.name} ({dur:.2f}s)")
 
         if not wav_files:
             self.write_err("No audio files could be converted. Aborting.", style_func=self.style.ERROR)
             return
 
-        # Step 3: Run transcribe endpoint under 3 conditions:
-        # (a) No hints
-        # (b) Tamil languageBias
-        # (c) Keywords = customer names
-        self.write_out("\n[Step 3] Calling Muse Voice Transcribe endpoint for all samples...", style_func=self.style.HTTP_INFO)
-
-        conditions = [
-            ("a", "no_hints", None, None, "No Hints"),
-            ("b", "language_bias", ["Tamil"], None, "Tamil languageBias"),
-            ("c", "keywords", None, customer_keywords, "Customer Keywords"),
+        # 5 Variants:
+        variants = [
+            ("a", "no_hints", None, None, "No hints"),
+            ("b", "tamil_only", ["Tamil"], None, "languageBias ['Tamil']"),
+            ("c", "keywords_only", None, customer_keywords, "keywords (names)"),
+            ("d", "tamil_keywords", ["Tamil"], customer_keywords, "languageBias ['Tamil'] + keywords"),
+            ("e", "tamil_english_keywords", ["Tamil", "English"], customer_keywords, "languageBias ['Tamil','English'] + keywords"),
         ]
 
-        probe_results: List[VoiceTranscribeResult] = []
+        variant_results: Dict[str, List[Dict[str, Any]]] = {v[0]: [] for v in variants}
 
-        for cond_key, var_name, lang_bias, kw, cond_label in conditions:
-            self.write_out(f"\n--- Condition ({cond_key}): {cond_label} ---")
-            for label, wav_path in sorted(wav_files.items()):
-                expected = expected_sentences.get(label, "")
-                try:
-                    res = transcribe_audio_file(
-                        wav_path=wav_path,
-                        file_label=label,
-                        expected_text=expected,
-                        variation=var_name,
-                        language_bias=lang_bias,
-                        keywords=kw,
-                        mock_mode=mock_mode,
+        self.write_out(f"\n[Live Probe] Executing {len(variants)} variants x {len(wav_files)} samples x {repeats} repeats ({len(variants)*len(wav_files)*repeats} calls)...", style_func=self.style.HTTP_INFO)
+
+        for var_key, var_name, lang_bias, kw, desc in variants:
+            self.write_out(f"\n>>> Running Variant ({var_key}): {desc} ...")
+            for rep in range(1, repeats + 1):
+                for label, wav_path in sorted(wav_files.items()):
+                    expected = expected_sentences.get(label, "")
+                    try:
+                        transcribe_res = transcribe_audio_file(
+                            wav_path=wav_path,
+                            file_label=label,
+                            expected_text=expected,
+                            variation=var_name,
+                            language_bias=lang_bias,
+                            keywords=kw,
+                            mock_mode=mock_mode,
+                        )
+                        transcript_text = transcribe_res.transcript.strip()
+                        script = transcribe_res.script
+                        lat_ms = transcribe_res.latency_ms
+
+                        # Parse in LIVE mode without saving
+                        drafts = []
+                        run_passed = False
+                        eval_note = ""
+                        if not skip_parse and transcript_text:
+                            parse_mode = "mock" if mock_mode else "live"
+                            parse_res = parse_text(transcript_text, save=False, mode=parse_mode)
+                            drafts = parse_res.drafts
+                            expected_specs = EXPECTED_ENTRIES.get(label, [])
+                            run_passed, eval_note = evaluate_sample_run(drafts, expected_specs)
+
+                        record = {
+                            "variant_key": var_key,
+                            "variant_name": var_name,
+                            "desc": desc,
+                            "repeat": rep,
+                            "sample": label,
+                            "expected": expected,
+                            "transcript": transcript_text,
+                            "script": script,
+                            "latency_ms": lat_ms,
+                            "audio_seconds": transcribe_res.audio_seconds,
+                            "estimated_cost": transcribe_res.estimated_cost,
+                            "drafts": drafts,
+                            "run_passed": run_passed,
+                            "eval_note": eval_note,
+                        }
+                        variant_results[var_key].append(record)
+
+                        status_str = "PASS" if run_passed else "FAIL"
+                        status_styled = self.style.SUCCESS(f"[{status_str}]") if run_passed else self.style.WARNING(f"[{status_str}]")
+                        self.write_out(
+                            f"  Rep {rep} | {label} | {lat_ms:.0f}ms | {script:<6} | {status_styled} Got: '{transcript_text}'"
+                        )
+                    except Exception as exc:
+                        self.write_err(f"  Rep {rep} | {label} | ERROR: {exc}", style_func=self.style.ERROR)
+
+        # Print Table 1: Per-Sample Run Details
+        self.write_out("\n" + "=" * 135, style_func=self.style.MIGRATE_HEADING)
+        self.write_out(" TABLE 1: PER-SAMPLE RUN DETAILS (ALL 5 VARIANTS x 4 SAMPLES x 2 REPEATS)", style_func=self.style.MIGRATE_HEADING)
+        self.write_out("=" * 135, style_func=self.style.MIGRATE_HEADING)
+
+        row_header = "{:<4} | {:<3} | {:<6} | {:<55} | {:<8} | {:<8} | {:<7}"
+        row_format = "{:<4} | {:<3} | {:<6} | {:<55} | {:<8} | {:<8} | {:<7}"
+        self.write_out(row_header.format("Var", "Rep", "Sample", "Transcript", "Script", "Latency", "Parsed"))
+        self.write_out("-" * 135)
+
+        for var_key, _, _, _, _ in variants:
+            records = variant_results[var_key]
+            for r in records:
+                t_trunc = (r["transcript"][:52] + "...") if len(r["transcript"]) > 55 else r["transcript"]
+                pass_label = "PASS" if r["run_passed"] else "FAIL"
+                lat_str = f"{r['latency_ms']:.0f}ms"
+                self.write_out(
+                    row_format.format(
+                        f"({r['variant_key']})",
+                        f"R{r['repeat']}",
+                        r["sample"],
+                        t_trunc,
+                        r["script"],
+                        lat_str,
+                        pass_label,
                     )
-                    probe_results.append(res)
-                    self.write_out(
-                        f"  [{label}] Latency: {res.latency_ms:.0f}ms | Script: {res.script} | Audio: {res.audio_seconds:.2f}s | Transcript: '{res.transcript}'"
-                    )
-                except Exception as exc:
-                    self.write_err(f"  [{label}] Error: {exc}", style_func=self.style.ERROR)
+                )
 
-        # Print Probe Results Table
-        self.write_out("\n" + "=" * 120, style_func=self.style.MIGRATE_HEADING)
-        self.write_out(" MUSE VOICE TRANSCRIBE PROBE RESULTS TABLE", style_func=self.style.MIGRATE_HEADING)
-        self.write_out("=" * 120, style_func=self.style.MIGRATE_HEADING)
+        # Print Table 2: 5-Variant Summary (8 runs each)
+        self.write_out("\n" + "=" * 115, style_func=self.style.MIGRATE_HEADING)
+        self.write_out(" TABLE 2: 5-VARIANT PERFORMANCE SUMMARY (OUT OF 8 RUNS PER VARIANT)", style_func=self.style.MIGRATE_HEADING)
+        self.write_out("=" * 115, style_func=self.style.MIGRATE_HEADING)
 
-        header_fmt = "{:<16} | {:<42} | {:<42} | {:<10} | {:<10} | {:<10} | {:<12}"
-        row_fmt = "{:<16} | {:<42} | {:<42} | {:<10} | {:<10} | {:<10} | {:<12}"
+        summary_header = "{:<4} | {:<42} | {:<12} | {:<10} | {:<12} | {:<15}"
+        summary_format = "{:<4} | {:<42} | {:<12} | {:<10} | {:<12} | {:<15}"
+        self.write_out(summary_header.format("Var", "Configuration Description", "Runs Passed", "Pass Rate", "Avg Latency", "Script Distribution"))
+        self.write_out("-" * 115)
 
-        self.write_out(
-            header_fmt.format(
-                "file",
-                "expected",
-                "got",
-                "script",
-                "latency",
-                "audio sec",
-                "est cost ($0.18/hr)",
-            )
-        )
-        self.write_out("-" * 155)
+        variant_scores: Dict[str, int] = {}
+        best_variant = None
+        max_passed = -1
 
-        for res in probe_results:
-            file_col = f"{res.file_label} ({res.variation})"
-            exp_trunc = (res.expected_text[:39] + "...") if len(res.expected_text) > 42 else res.expected_text
-            got_trunc = (res.transcript[:39] + "...") if len(res.transcript) > 42 else res.transcript
-            lat_str = f"{res.latency_ms:.0f}ms"
-            dur_str = f"{res.audio_seconds:.2f}s"
-            cost_str = f"${res.estimated_cost:.5f}"
+        for var_key, var_name, _, _, desc in variants:
+            records = variant_results[var_key]
+            total_runs = len(records)
+            passed_runs = sum(1 for r in records if r["run_passed"])
+            variant_scores[var_key] = passed_runs
+
+            rate_pct = f"{(passed_runs / total_runs * 100):.1f}%" if total_runs > 0 else "0.0%"
+            avg_lat = f"{(sum(r['latency_ms'] for r in records) / total_runs):.0f}ms" if total_runs > 0 else "0ms"
+
+            scripts = [r["script"] for r in records]
+            script_dist = f"T:{scripts.count('Tamil')}/M:{scripts.count('mixed')}/O:{scripts.count('unknown')+scripts.count('Latin')}"
 
             self.write_out(
-                row_fmt.format(
-                    file_col,
-                    exp_trunc,
-                    got_trunc,
-                    res.script,
-                    lat_str,
-                    dur_str,
-                    cost_str,
+                summary_format.format(
+                    f"({var_key})",
+                    desc[:42],
+                    f"{passed_runs}/{total_runs}",
+                    rate_pct,
+                    avg_lat,
+                    script_dist,
                 )
             )
 
-        # Step 4: Pass transcripts through parse_text in LIVE mode (save=False)
-        if not skip_parse:
-            self.write_out("\n" + "=" * 120, style_func=self.style.MIGRATE_HEADING)
+            if passed_runs > max_passed:
+                max_passed = passed_runs
+                best_variant = (var_key, desc, passed_runs, total_runs)
+
+        self.write_out("-" * 115)
+
+        # Conclusion & Default Selection
+        if best_variant:
             self.write_out(
-                " [Step 4] Live Parse Validation (parse_text with save=False against expected.txt)",
-                style_func=self.style.MIGRATE_HEADING,
+                f"\n>>> Best Performing Variant: ({best_variant[0]}) {best_variant[1]} with {best_variant[2]}/{best_variant[3]} passed runs.",
+                style_func=self.style.SUCCESS,
             )
-            self.write_out("=" * 120, style_func=self.style.MIGRATE_HEADING)
-
-            total_drafts_checked = 0
-            total_drafts_passed = 0
-
-            # Select best transcript for each sample to evaluate ledger extraction
-            for label in sorted(wav_files.keys()):
-                sample_results = [r for r in probe_results if r.file_label == label]
-                if not sample_results:
-                    continue
-
-                self.write_out(f"\n--- Evaluating Sample: {label} ---")
-                self.write_out(f"Expected sentence: {expected_sentences.get(label, '')}")
-
-                for res in sample_results:
-                    transcript_text = res.transcript.strip()
-                    if not transcript_text:
-                        self.write_out(f"  Variation ({res.variation}): Transcript empty, skipping parse.")
-                        continue
-
-                    parse_mode = "mock" if mock_mode else "live"
-                    try:
-                        parse_res = parse_text(transcript_text, save=False, mode=parse_mode)
-                    except Exception as exc:
-                        self.write_out(f"  Variation ({res.variation}) parse_text error: {exc}", style_func=self.style.ERROR)
-                        continue
-
-                    drafts = parse_res.drafts
-                    self.write_out(
-                        f"  Variation ({res.variation}) Transcript: '{transcript_text}' -> {len(drafts)} draft(s) created (save=False):"
-                    )
-
-                    expected_specs = EXPECTED_ENTRIES.get(label, [])
-
-                    # Match drafts against expected specs
-                    for idx, exp_spec in enumerate(expected_specs):
-                        total_drafts_checked += 1
-                        matched_draft = None
-                        if idx < len(drafts):
-                            d = drafts[idx]
-                            # Check customer, kind, amount
-                            name_match = (
-                                d.customer_name.strip().lower() == exp_spec["customer"].lower()
-                                or (exp_spec["customer"] == "Murugan" and "முருகன்" in d.customer_name)
-                                or (exp_spec["customer"] == "Murugan" and "murugan" in d.customer_name.lower())
-                            )
-                            kind_match = d.kind.strip().lower() == exp_spec["kind"].lower()
-                            amt_match = abs(d.amount - exp_spec["amount"]) < Decimal("0.01")
-
-                            if name_match and kind_match and amt_match:
-                                total_drafts_passed += 1
-                                self.write_out(
-                                    f"    [PASS] Draft #{idx+1}: Customer='{d.customer_name}', Kind='{d.kind}', Amount=₹{d.amount} (Source label: {d.source_label})",
-                                    style_func=self.style.SUCCESS,
-                                )
-                            else:
-                                self.write_out(
-                                    f"    [FAIL] Draft #{idx+1}: Got (Customer='{d.customer_name}', Kind='{d.kind}', Amount=₹{d.amount}) | Expected (Customer='{exp_spec['customer']}', Kind='{exp_spec['kind']}', Amount=₹{exp_spec['amount']})",
-                                    style_func=self.style.WARNING,
-                                )
-                        else:
-                            self.write_out(
-                                f"    [FAIL] Missing draft for expected #{idx+1}: Customer='{exp_spec['customer']}', Kind='{exp_spec['kind']}', Amount=₹{exp_spec['amount']}",
-                                style_func=self.style.ERROR,
-                            )
-
-            self.write_out("\n" + "-" * 80)
-            self.write_out(
-                f"Parse Validation Summary: {total_drafts_passed} / {total_drafts_checked} drafts passed accuracy check."
-            )
-            self.write_out("-" * 80)
+            if best_variant[2] < 6:
+                self.write_out(
+                    f"CRITICAL: Best variant passed {best_variant[2]} (< 6) out of 8 runs! STOPPING per instructions.",
+                    style_func=self.style.ERROR,
+                )
+            else:
+                self.write_out(
+                    f"THRESHOLD MET: Best variant passed {best_variant[2]} >= 6 out of 8 runs. Proceeding to Part B.",
+                    style_func=self.style.SUCCESS,
+                )

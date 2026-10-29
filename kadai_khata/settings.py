@@ -164,3 +164,10 @@ DEMO_RATE_LIMIT_ASK = int(os.getenv("DEMO_RATE_LIMIT_ASK", str(DEMO_RATE_LIMIT_T
 DEMO_RATE_LIMIT_PHOTO = int(os.getenv("DEMO_RATE_LIMIT_PHOTO", "5"))
 DEMO_RATE_LIMIT_AGENT = int(os.getenv("DEMO_RATE_LIMIT_AGENT", "3"))
 DEMO_RATE_LIMIT_REMINDER = int(os.getenv("DEMO_RATE_LIMIT_REMINDER", "20"))
+DEMO_RATE_LIMIT_VOICE = int(os.getenv("DEMO_RATE_LIMIT_VOICE", "10"))
+
+# Voice transcription settings (Meta Muse Voice Transcribe)
+VOICE_LANGUAGE_BIAS = os.getenv("VOICE_LANGUAGE_BIAS", "Tamil")
+VOICE_MAX_SECONDS = float(os.getenv("VOICE_MAX_SECONDS", "20"))
+VOICE_MAX_BYTES = int(os.getenv("VOICE_MAX_BYTES", "2000000"))
+META_VOICE_TIMEOUT_SECONDS = float(os.getenv("META_VOICE_TIMEOUT_SECONDS", "60.0"))

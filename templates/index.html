@@ -315,6 +315,19 @@
                 <span class="status-spinner" aria-hidden="true"></span>
                 <span id="input-status-text" data-i18n="parsingSentence">Understanding Tanglish transaction...</span>
                 <button id="photo-cancel-btn" class="status-cancel-btn" type="button" style="display: none;" aria-label="Cancel reading photo">Cancel</button>
+                <button id="voice-cancel-btn" class="status-cancel-btn" type="button" style="display: none;" aria-label="Cancel voice recording">Cancel</button>
+            </div>
+
+            <!-- Voice Transcript Review Notice -->
+            <div id="voice-note-banner" class="voice-note-banner" style="display: none;">
+                <div class="voice-note-content">
+                    <span class="voice-note-icon" aria-hidden="true">&#9998;</span>
+                    <div class="voice-note-body">
+                        <strong id="voice-note-prompt" data-i18n="checkWordsThenSend">Check the words, then press Send</strong>
+                        <small class="voice-note-disclaimer" data-i18n="voiceDisclaimer">Voice is transcribed by Meta Muse Voice Transcribe; audio is not stored.</small>
+                    </div>
+                </div>
+                <button id="close-voice-note-btn" class="voice-note-close" type="button" aria-label="Dismiss notice">&times;</button>
             </div>
 
             <!-- "Try these" chips & sample notebook button for judge evaluation -->
@@ -329,23 +342,22 @@
                     <button type="button" class="sample-chip" data-sentence="Ravi 450 udhaar paal packet bread">Ravi 450 udhaar paal packet bread</button>
                     <button type="button" class="sample-chip" data-sentence="Murugan phonpe-la 300 kuduthaar">Murugan phonpe-la 300 kuduthaar</button>
                     <button type="button" class="sample-chip" data-sentence="Selvam 1200 rooba arisi moottai udhaar book pannunga">Selvam 1200 rooba arisi moottai udhaar book pannunga</button>
-                    <button type="button" class="sample-chip" data-sentence="Priya 200 cash kuduthaanga balance baaki evlo">Priya 200 cash kuduthaanga balance baaki evlo</button>
+                    <button type="button" class="sample-chip" data-sentence="Priya 200 cash kuduthaanga">Priya 200 cash kuduthaanga</button>
                 </div>
             </div>
 
             <form id="transcription-form" class="input-form" onsubmit="return false;">
                 <div class="input-controls-row">
-                    <!-- Disabled Mic Button with "coming soon" label -->
+                    <!-- Enabled Mic Button for Voice Input -->
                     <button
                         id="mic-btn"
                         class="mic-btn"
                         type="button"
-                        disabled
-                        aria-label="Voice input (Coming soon)"
-                        title="Voice input coming soon"
+                        aria-label="Voice input"
+                        data-i18n-aria="voiceInput"
+                        title="Voice input (Tap to speak)"
                     >
                         <span class="mic-icon" aria-hidden="true">&#127908;</span>
-                        <span class="mic-tooltip" data-i18n="comingSoon">Coming soon</span>
                     </button>
 
                     <!-- Notebook Photo Upload Button & Hidden Input -->
@@ -486,6 +498,10 @@
                             <strong>4. Autonomous Agent Loop:</strong>
                             <p>Daily Collections Agent runs an autonomous multi-turn ReAct reasoning loop calling read-only ledger tools to review debt aging, payment habits, and propose polite collection actions.</p>
                         </div>
+                        <div class="tech-feature-item">
+                            <strong>5. Audio Voice Transcription (Muse Voice Transcribe):</strong>
+                            <p>Converts shopkeeper spoken Tamil and Tanglish voice notes into editable text via <code>muse-voice-transcribe-1.0</code> with vocabulary biasing (existing customer names) and <code>languageBias: ["Tamil"]</code>. Parsing is subsequently performed by <code>muse-spark-1.3</code> only after the owner reviews the transcript. Zero audio bytes stored on disk or DB.</p>
+                        </div>
                     </section>
 
                     <section class="modal-tech-section">
@@ -501,6 +517,10 @@
                         <div class="tech-feature-item">
                             <strong>3. SHA-256 Cryptographic Hash Chain:</strong>
                             <p>Every single agent execution step, tool input, tool output, and final plan is cryptographically linked with previous-step SHA-256 hashes, producing an immutable, tamper-evident audit trail replayable offline.</p>
+                        </div>
+                        <div class="tech-feature-item">
+                            <strong>4. Owner Transcript Review Screen:</strong>
+                            <p>Voice audio is never directly booked into the ledger. The shopkeeper reviews and edits the transcribed text before pressing Send, preventing transcription ambiguities from affecting accounts.</p>
                         </div>
                     </section>
                 </div>
