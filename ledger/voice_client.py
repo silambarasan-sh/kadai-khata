@@ -51,6 +51,7 @@ class VoiceTranscribeResult:
     audio_seconds: float
     estimated_cost: float
     session_id: str = ""
+    audio_duration_ms: Optional[int] = None
     raw_response: Dict[str, Any] = field(default_factory=dict)
     variation: str = "no_hints"
 
@@ -76,6 +77,11 @@ def find_ffmpeg() -> Optional[Path]:
         if candidates:
             return candidates[0]
 
+    # 4. Explicit fallback for Winget Gyan.FFmpeg installation
+    winget_default = Path(r"C:\Users\ADMIN\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.2-full_build\bin\ffmpeg.exe")
+    if winget_default.is_file():
+        return winget_default
+
     return None
 
 
@@ -96,6 +102,11 @@ def find_ffprobe() -> Optional[Path]:
         )
         if candidates:
             return candidates[0]
+
+    # Explicit fallback for Winget Gyan.FFmpeg installation
+    winget_default = Path(r"C:\Users\ADMIN\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.2-full_build\bin\ffprobe.exe")
+    if winget_default.is_file():
+        return winget_default
 
     return None
 
@@ -316,6 +327,7 @@ def transcribe_audio_bytes(
     if mock_mode:
         script_text = expected_text or "Ravi 450 udhaar"
         script = detect_script(script_text)
+        mock_dur_ms = int(duration * 1000)
         return VoiceTranscribeResult(
             file_label=file_label or "in_memory_audio",
             expected_text=expected_text,
@@ -325,7 +337,13 @@ def transcribe_audio_bytes(
             audio_seconds=duration,
             estimated_cost=estimated_cost,
             session_id="mock_session_123",
-            raw_response={"transcript": script_text, "session_id": "mock_session_123"},
+            audio_duration_ms=mock_dur_ms,
+            raw_response={
+                "sessionId": "mock_session_123",
+                "transcript": script_text,
+                "audioDurationMs": mock_dur_ms,
+                "turns": [{"turnId": 1, "transcript": script_text}],
+            },
             variation=variation,
         )
 
@@ -410,8 +428,19 @@ def transcribe_audio_bytes(
     except Exception as exc:
         raise VoiceServerError(f"Failed to decode JSON response from ASR endpoint: {exc}") from exc
 
-    transcript = data.get("transcript", "").strip()
-    session_id = data.get("session_id", "")
+    transcript = data.get("transcript") or data.get("text") or ""
+    if not transcript and "turns" in data and isinstance(data["turns"], list):
+        transcript = " ".join(t.get("transcript", "") for t in data["turns"] if isinstance(t, dict)).strip()
+    transcript = transcript.strip()
+
+    session_id = str(data.get("sessionId") or data.get("session_id") or "")
+    audio_dur_ms = data.get("audioDurationMs") or data.get("audio_duration_ms")
+    if audio_dur_ms is not None:
+        try:
+            audio_dur_ms = int(audio_dur_ms)
+        except (ValueError, TypeError):
+            pass
+
     script = detect_script(transcript)
 
     return VoiceTranscribeResult(
@@ -423,6 +452,7 @@ def transcribe_audio_bytes(
         audio_seconds=duration,
         estimated_cost=estimated_cost,
         session_id=session_id,
+        audio_duration_ms=audio_dur_ms,
         raw_response=data,
         variation=variation,
     )

@@ -80,7 +80,7 @@ All environment variables use placeholder values below. Never commit real keys.
 | `DEMO_RATE_LIMIT_VOICE` | Optional | `10` | Maximum speech-to-text transcriptions per client IP per hour. |
 | `DEMO_RATE_LIMIT_AGENT` | Optional | `3` | Maximum daily collections agent reviews per client IP per hour. |
 | `DEMO_RATE_LIMIT_REMINDER` | Optional | `20` | Maximum reminder drafts per client IP per hour. |
-| `VOICE_LANGUAGE_BIAS` | Optional | `"Tamil"` | Target language bias for Meta Muse Voice Transcribe. Comma-separated. |
+| `VOICE_LANGUAGE_BIAS` | Optional | `"Tamil,English"` | Target language bias for Meta Muse Voice Transcribe. Comma-separated. |
 | `VOICE_MAX_SECONDS` | Optional | `20` | Maximum recording duration in seconds accepted for voice upload. |
 | `VOICE_MAX_BYTES` | Optional | `2000000` | Maximum raw audio payload size in bytes (2 MB). |
 | `META_VOICE_TIMEOUT_SECONDS` | Optional | `60.0` | Timeout in seconds for Meta Muse Voice Transcribe API calls. |

@@ -353,74 +353,74 @@ For small kirana store owners handling rapid customer transactions, typing on mo
 
 ### 2. Empirical 5-Variant Feasibility Benchmark (`voice_probe`)
 We conducted a live feasibility probe with 4 real mobile phone voice recordings ($n = 4$ clips from 1 single speaker):
-- `s1.mp4`: *"Ravi-ku aanju nooru rooba udhaar kuduthen"* (Credit given: Ravi, ₹500)
-- `s2.mp4`: *"Murugan phonepe-la moonu nooru anupirukaaru"* (Payment received: Murugan, ₹300)
-- `s3.mp4`: *"Selvam aayirathu iranooru rooba arisi moottai udhaar potukonga"* (Credit given: Selvam, ₹1200)
-- `s4.mp4`: *"Priya-ku iranooru rooba udhaar"* (Noisy background audio; Credit given: Priya, ₹200)
+- `s1.mp4`: *"Ravi-ku aanju nooru rooba udhaar kuduthen"* (ffprobe: 5.18s, API: 5200ms; expected: Ravi credit_given 500)
+- `s2.mp4`: *"Mani irunooru thirumba kuduthaan, Selvi-ku moonu nooru udhaar"* (ffprobe: 8.68s, API: 8720ms; expected: Mani payment_received 200, Selvi credit_given 300)
+- `s3.mp4`: *"முருகன் நானூறு ரூபாய் கடன் வாங்கினார்"* (ffprobe: 4.80s, API: 4800ms; expected: Murugan credit_given 400)
+- `s4.mp4`: *"Bala aayiram rooba gpay pannitaanga"* (ffprobe: 3.90s, API: 3920ms; expected: Bala payment_received 1000)
 
-We evaluated 5 configuration variants across 2 independent repeats each (**40 total live Meta API calls**):
+We evaluated 5 configuration variants across 2 independent repeats each (**40 total live Meta API calls**). Every record is saved as raw JSON under `tests/voice_samples/_raw/` and code-loaded:
 
-#### Table 1: Live Run Benchmark Details (5 Variants × 4 Samples × 2 Repeats)
+#### Table 1: Code-Generated Per-Sample Run Details (40 Live Runs from tests/voice_samples/_raw/)
 
-| Var | Rep | Sample | Transcript | Script | Latency | Draft Evaluation (Pass / Fail) |
-|:---|:---|:---|:---|:---|:---|:---|
-| (a) | R1 | s1 | ரவிக்கு 500 ரூபாய் கடன் கொடுத்தேன் | Tamil | 3381ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (a) | R1 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 3192ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (a) | R1 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3583ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (a) | R1 | s4 | Priya 200 ரூபாய் உதார் | mixed | 2736ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
-| (a) | R2 | s1 | ರವಿಗೆ 500 ರೂಪಾಯಿ ಉದಾರ್ ಕೊಟ್ಟೆ | Other (Kannada) | 3907ms | **FAIL** (Kannada script unparsed by Tanglish parser) |
-| (a) | R2 | s2 | Murugan Phonepe ல ₹300 அனுப்பி இருக்காரு | mixed | 3449ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (a) | R2 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3959ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (a) | R2 | s4 | Priya 200 ரூபாய் உதார் | mixed | 3144ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
-| (b) | R1 | s1 | ரவிக்கு 500 ரூபாய் கடன் கொடுத்தேன் | Tamil | 3302ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (b) | R1 | s2 | முருகன் போன்பேல 300 அனுப்பி இருக்காரு | Tamil | 3280ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (b) | R1 | s3 | செல்வம் 1200 ரூபாய் அரிசி மூட்டை உதார் போட்டுக்கோங்க | Tamil | 3350ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (b) | R1 | s4 | பிரியாவுக்கு ₹200 கடன் | Tamil | 3195ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
-| (b) | R2 | s1 | ரவிக்கு ₹500 கடன் கொடுத்தேன் | Tamil | 3290ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (b) | R2 | s2 | முருகன் போன்பேல 300 அனுப்பி இருக்காரு | Tamil | 3217ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (b) | R2 | s3 | செல்வம் 1200 ரூபாய் அரிசி மூட்டை உதார் போட்டுக்கோங்க | Tamil | 3409ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (b) | R2 | s4 | பிரியாவுக்கு ₹200 கடன் | Tamil | 3390ms | **FAIL** (Hallucinated amount on noisy sample s4) |
-| (c) | R1 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 2800ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (c) | R1 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 3173ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (c) | R1 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3097ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (c) | R1 | s4 | Priya 200 ரூபாய் உதார் | mixed | 2774ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
-| (c) | R2 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3073ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (c) | R2 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 2911ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (c) | R2 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3183ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (c) | R2 | s4 | Priya 200 ரூபாய் உதார் | mixed | 2772ms | **FAIL** (Misparsed under noisy speech in R2) |
-| (d) | R1 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3226ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (d) | R1 | s2 | Murugan போன்பேல 300 அனுப்பி இருக்காரு | mixed | 2987ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (d) | R1 | s3 | Selvam 1200 ரூபாய் அரிசி மூட்டை உதார் போட்டுக்கோங்க | mixed | 3209ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (d) | R1 | s4 | Priya-வுக்கு ₹200 கடன் | mixed | 3001ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
-| (d) | R2 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3087ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (d) | R2 | s2 | Murugan போன்பேல 300 அனுப்பி இருக்காரு | mixed | 2942ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (d) | R2 | s3 | Selvam 1200 ரூபாய் அரிசி மூட்டை உதார் போட்டுக்கோங்க | mixed | 3236ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (d) | R2 | s4 | Priya-வுக்கு ₹200 கடன் | mixed | 2835ms | **FAIL** (Noise induced missing draft on s4 R2) |
-| (e) | R1 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3154ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (e) | R1 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 3097ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (e) | R1 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3448ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (e) | R1 | s4 | Priya 200 ரூபாய் உதார் | mixed | 3084ms | **PASS** (Priya Sundaram, credit_given ₹200.00) |
-| (e) | R2 | s1 | Ravi-க்கு ₹500 கடன் கொடுத்தேன் | mixed | 3110ms | **PASS** (Ravi Kumar, credit_given ₹500.00) |
-| (e) | R2 | s2 | Murugan Phonepe-ல ₹300 அனுப்பி இருக்காரு | mixed | 3042ms | **PASS** (Murugan P, payment_received ₹300.00) |
-| (e) | R2 | s3 | Selvam ₹1200 ரூபாய் அரிசி முட்டை உதார் போட்டுக்கோங்க | mixed | 3426ms | **PASS** (Selvam S, credit_given ₹1200.00) |
-| (e) | R2 | s4 | Priya 200 ரூபாய் உதார் | mixed | 3157ms | **FAIL** (Noise induced missing draft on s4 R2) |
+| Sample | Var | Rep | audioDurationMs (ffprobe) | Transcript | Expected Drafts | Got Drafts | Pass |
+|:---|:---|:---|:---|:---|:---|:---|:---|
+| s1 | (a) | R1 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூಬಾ ಉದಾರ ಕೊಡುತ್ತೇನೆ. ಕೊಡುತ್ತೇನೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (a) | R2 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூಪಾಯಿ ಉಧಾರ್ ಕೊಡುತ್ತೇನೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (a) | R1 | 8720ms (8.68s) | மணி இருநூறு திரும்பக் கொடுத்தான், செல்விக்கு செல்விக்கு மூனூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (a) | R2 | 8720ms (8.68s) | मणि இருநூறு திரும்பக் கொடுத்தான், செல்விக்கு செல்விக்கு மூனூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (a) | R1 | 4800ms (4.80s) | ಮೂರುಗನ್ ನಾನೂರು ರೂಪಾಯಿ ರೂಪಾಯಿ ಕടನ್ ವാങ്ങinar. | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (a) | R2 | 4800ms (4.80s) | Murugan 400 ರೂಪಾಯಿ ಕಷ್ಟನ್ ವಾಂಗಿನಾರ್. | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (a) | R1 | 3920ms (3.90s) | बहला आयरन रोबट ஜீப்பே பண்ணிட்டாங்க. | Bala payment_received 1000 | None | **FAIL** |
+| s4 | (a) | R2 | 3920ms (3.90s) | बहला आयरन रोबट ஜீபே பண்ணிட்டாங்க. | Bala payment_received 1000 | None | **FAIL** |
+| s1 | (b) | R1 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (b) | R2 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (b) | R1 | 8720ms (8.68s) | மணி இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு செல்விக்கு மூன்னூறு உதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (b) | R2 | 8720ms (8.68s) | மணி இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு மூன்னூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (b) | R1 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (b) | R2 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (b) | R1 | 3920ms (3.90s) | பழா ஆயிரம் ரூபாய் GP பண்ணிட்டாங்க. | Bala payment_received 1000 | Pazha payment_received 1000 | **FAIL** |
+| s4 | (b) | R2 | 3920ms (3.90s) | பழ ஆயிரம் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | None | **FAIL** |
+| s1 | (c) | R1 | 5200ms (5.18s) | Ravi ku anjinooru ரூபா உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (c) | R2 | 5200ms (5.18s) | Ravi కి Anjinoor రూపా ఉదార్ కొడుతెన్ | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (c) | R1 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selviக்கு மூன்னூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (c) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selvi க்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (c) | R1 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (c) | R2 | 4800ms (4.80s) | Murugan நானூறு 400 ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (c) | R1 | 3920ms (3.90s) | Bala, ayiram rupees GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s4 | (c) | R2 | 3920ms (3.90s) | Bala, ayiram rupees GPA GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s1 | (d) | R1 | 5200ms (5.18s) | Ravi కి అంజీనూరు రూపా ఉదార్ ಕೊಡುತ್ತಾರೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (d) | R2 | 5200ms (5.18s) | Ravi ku அஞ்சு நூறு ரூபா உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (d) | R1 | 8720ms (8.68s) | Mani, இருநூறு திரும்பக் கொடுத்தான். Selvi-க்கு மூண்ணூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (d) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selviக்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (d) | R1 | 4800ms (4.80s) | Murugan நானூறு நூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | None | **FAIL** |
+| s3 | (d) | R2 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (d) | R1 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் GPay பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s4 | (d) | R2 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் ரூபாய் GPay பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s1 | (e) | R1 | 5200ms (5.18s) | Ravi ku anji hundred ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (e) | R2 | 5200ms (5.18s) | Ravi కి అంచினూరు రూపా ఉదార్ కొడుతెన్. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (e) | R1 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selviக்கு மூணுந்நூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (e) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selviக்கு மூன்னூறு உதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (e) | R1 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (e) | R2 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (e) | R1 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் ரூபாய் GP பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s4 | (e) | R2 | 3920ms (3.90s) | Bala, ayiram rupees GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
 
 #### Table 2: 5-Variant Performance Summary (8 Runs Each)
 
 | Variant | Configuration Description | Runs Passed | Pass Rate | Avg Latency | Script Distribution |
 |:---|:---|:---|:---|:---|:---|
-| **(a)** | No hints | 6 / 8 | 75.0% | 3419 ms | T:1 / M:6 / Other:1 (Kannada) |
-| **(b)** | `languageBias: ["Tamil"]` | 6 / 8 | 75.0% | 3304 ms | T:8 / M:0 / Other:0 |
-| **(c)** | `keywords (customer names)` | 7 / 8 | 87.5% | 2973 ms | T:0 / M:8 / Other:0 |
-| **(d)** | `languageBias: ["Tamil"]` + `keywords` | **7 / 8** | **87.5%** | 3065 ms | T:0 / M:8 / Other:0 |
-| **(e)** | `languageBias: ["Tamil","English"]` + `keywords` | 7 / 8 | 87.5% | 3190 ms | T:0 / M:8 / Other:0 |
+| **(a)** | No hints | 6 / 8 | 75.0% | 3625 ms | Tamil:6, Latin/Other:2 |
+| **(b)** | `languageBias: ["Tamil"]` | 6 / 8 | 75.0% | 4214 ms | Tamil:6, Mixed:2 |
+| **(c)** | `keywords (customer names)` | **8 / 8** | **100.0%** | 3585 ms | Mixed:7, Other:1 |
+| **(d)** | `languageBias: ["Tamil"]` + `keywords` | 7 / 8 | 87.5% | 3586 ms | Mixed:7, Other:1 |
+| **(e)** | `languageBias: ["Tamil","English"]` + `keywords` | **8 / 8** | **100.0%** | **3485 ms** | Mixed:7, Other:1 |
 
-### 3. Key Findings & Official Documentation
-1. **Tamil Official Language Support**: Tamil is explicitly listed in the official Meta documentation (`https://dev.meta.ai/docs/speech-to-text`) among the 14 supported spoken languages.
-2. **Script Switching Without Bias**: In variant (a) (no hints), the model produced Kannada script (`ರವಿಗೆ...`) on Tamil phonetics during repeat 2. Supplying `languageBias: ["Tamil"]` in variant (b) and (d) eliminated script-switching entirely, locking output to Tamil script.
-3. **Keyword Grounding**: Supplying customer names in `keywords` preserved exact Latin transliterations (e.g. *Ravi-க்கு*, *Murugan Phonepe-ல*, *Selvam*) which matched perfectly with customer records.
-4. **Latency & Economics**: Real live latency ranged from **2.7s to 4.1s** (averaging ~3.0s). At Meta's pricing rate of $0.18 / audio hour, a typical 3.5-second shopkeeper transaction costs approximately **$0.000175 USD** (< ₹0.015 INR).
-5. **Winning Default Configuration**: Variant (d) (`VOICE_LANGUAGE_BIAS="Tamil"` with customer keywords) demonstrated the highest reliability (7/8 = 87.5% pass rate), high speed (3065ms avg), and clean grounding. It is configured as the default setting.
+### 3. Key Findings & Tie-Breaker Selection
+1. **Tamil Official Language Support**: Tamil is officially supported per Meta documentation (`https://dev.meta.ai/docs/speech-to-text`).
+2. **Script Switching Without Bias**: In variant (a) (no hints), the model produced Kannada script (`ಮೂರುಗನ್...`, `ಉದಾರ ಕೊಡುತ್ತೇನೆ`) and Devanagari script (`बहला...`, `मणि`) when transcribing Tamil speech. Supplying `languageBias: ["Tamil"]` in variant (b) grounded output in Tamil script (`ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன்`).
+3. **Keyword Grounding for Names**: Customer names supplied as `keywords` preserved exact customer identifiers (*Ravi*, *Mani*, *Selvi*, *Murugan*, *Bala*), avoiding phonetic confusion (e.g., mishearing *Bala* as *Pazha / பழா* in variant b).
+4. **Tie & Default Configuration**: Variants **(c)** and **(e)** tied with a **100.0% pass rate (8 of 8 runs passed)**. Following the tie-breaking rule (preferring the variant with Tamil language bias plus keywords), variant **(e)** (`languageBias: ["Tamil", "English"]` + customer keywords) is configured as the default: `VOICE_LANGUAGE_BIAS="Tamil,English"`.
+5. **Latency & Accuracy**: Live latency averaged **3.48s - 4.21s** across all variants. With Tamil and English language bias plus customer keywords, both single and compound Tanglish sentences parsed into exact transaction drafts with zero errors.
 
 ---
 

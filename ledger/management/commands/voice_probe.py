@@ -22,44 +22,96 @@ from ledger.voice_client import (
 )
 
 
-EXPECTED_ENTRIES = {
-    "s1": [
-        {"customer": "Ravi", "kind": EntryKind.CREDIT_GIVEN.value, "amount": Decimal("500.00")}
-    ],
-    "s2": [
-        {"customer": "Mani", "kind": EntryKind.PAYMENT_RECEIVED.value, "amount": Decimal("200.00")},
-        {"customer": "Selvi", "kind": EntryKind.CREDIT_GIVEN.value, "amount": Decimal("300.00")},
-    ],
-    "s3": [
-        {"customer": "Murugan", "kind": EntryKind.CREDIT_GIVEN.value, "amount": Decimal("400.00")}
-    ],
-    "s4": [
-        {"customer": "Bala", "kind": EntryKind.PAYMENT_RECEIVED.value, "amount": Decimal("1000.00")}
-    ],
-}
+def load_expected_drafts(json_path: Path) -> Dict[str, List[Dict[str, Any]]]:
+    """Load expected drafts from expected_drafts.json."""
+    if not json_path.exists():
+        return {
+            "s1": [{"customer": "Ravi", "kind": EntryKind.CREDIT_GIVEN.value, "amount": Decimal("500.00")}],
+            "s2": [
+                {"customer": "Mani", "kind": EntryKind.PAYMENT_RECEIVED.value, "amount": Decimal("200.00")},
+                {"customer": "Selvi", "kind": EntryKind.CREDIT_GIVEN.value, "amount": Decimal("300.00")},
+            ],
+            "s3": [{"customer": "Murugan", "kind": EntryKind.CREDIT_GIVEN.value, "amount": Decimal("400.00")}],
+            "s4": [{"customer": "Bala", "kind": EntryKind.PAYMENT_RECEIVED.value, "amount": Decimal("1000.00")}],
+        }
+    with open(json_path, "r", encoding="utf-8") as f:
+        raw = json.load(f)
+    result: Dict[str, List[Dict[str, Any]]] = {}
+    for k, v in raw.items():
+        result[k] = [
+            {
+                "customer": item["customer"],
+                "kind": item["kind"],
+                "amount": Decimal(str(item["amount"])),
+            }
+            for item in v
+        ]
+    return result
 
 
 def check_draft_match(d: Any, exp_spec: Dict[str, Any]) -> bool:
+    """Check if a draft matches expected spec, ignoring customer suffixes like 'Kumar' or honorifics."""
     c_got = d.customer_name.strip().lower()
     c_exp = exp_spec["customer"].strip().lower()
-    name_ok = (
-        c_got == c_exp
-        or c_got.startswith(c_exp)
-        or (c_exp == "murugan" and ("முருகன்" in c_got or "murugan" in c_got))
+
+    tamil_aliases = {
+        "murugan": ["முருகன்", "murugan"],
+        "ravi": ["ரவி", "ravi"],
+        "mani": ["மணி", "mani"],
+        "selvi": ["செல்வி", "selvi"],
+        "bala": ["பாலா", "பால", "bala"],
+    }
+    aliases = tamil_aliases.get(c_exp, [c_exp])
+    name_ok = any(
+        c_got == a
+        or c_got.startswith(a + " ")
+        or c_got.startswith(a)
+        or a in c_got
+        for a in aliases
     )
     kind_ok = d.kind.strip().lower() == exp_spec["kind"].strip().lower()
-    amt_ok = abs(d.amount - exp_spec["amount"]) < Decimal("0.01")
+    amt_ok = abs(Decimal(str(d.amount)) - Decimal(str(exp_spec["amount"]))) < Decimal("0.01")
     return name_ok and kind_ok and amt_ok
 
 
 def evaluate_sample_run(drafts: List[Any], expected_specs: List[Dict[str, Any]]) -> Tuple[bool, str]:
+    """Evaluate whether drafts exactly match expected specs in customer, kind, amount, and count."""
     if len(drafts) != len(expected_specs):
-        return False, f"Expected {len(expected_specs)} draft(s), got {len(drafts)}"
-    for idx, exp_spec in enumerate(expected_specs):
-        d = drafts[idx]
-        if not check_draft_match(d, exp_spec):
-            return False, f"Draft #{idx+1} mismatch: Got ({d.customer_name}, {d.kind}, ₹{d.amount}) vs Exp ({exp_spec['customer']}, {exp_spec['kind']}, ₹{exp_spec['amount']})"
-    return True, "Exact match"
+        got_summary = "; ".join(f"{d.customer_name} {d.kind} {d.amount}" for d in drafts) if drafts else "None"
+        return False, f"Count mismatch: expected {len(expected_specs)}, got {len(drafts)} [{got_summary}]"
+
+    matched_indices = set()
+    for exp in expected_specs:
+        found = False
+        for idx, d in enumerate(drafts):
+            if idx in matched_indices:
+                continue
+            if check_draft_match(d, exp):
+                matched_indices.add(idx)
+                found = True
+                break
+        if not found:
+            got_summary = "; ".join(f"{d.customer_name} {d.kind} {d.amount}" for d in drafts) if drafts else "None"
+            return False, f"Missing {exp['customer']} {exp['kind']} {exp['amount']} (Got: [{got_summary}])"
+
+    return True, "Match"
+
+
+def format_drafts_summary(drafts_list: List[Dict[str, Any]]) -> str:
+    """Format a list of draft dicts into a concise summary string."""
+    if not drafts_list:
+        return "None"
+    parts = []
+    for d in drafts_list:
+        c = d.get("customer") or d.get("customer_name") or ""
+        k = d.get("kind") or ""
+        a = d.get("amount") or ""
+        try:
+            a_int = int(Decimal(str(a)))
+            parts.append(f"{c} {k} {a_int}")
+        except Exception:
+            parts.append(f"{c} {k} {a}")
+    return "; ".join(parts)
 
 
 class Command(BaseCommand):
@@ -124,6 +176,14 @@ class Command(BaseCommand):
 
         samples_dir = Path(options["samples_dir"])
         expected_path = samples_dir / "expected.txt"
+        expected_drafts_path = samples_dir / "expected_drafts.json"
+        raw_output_dir = samples_dir / "_raw"
+        raw_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Clean raw output directory for fresh verification run
+        for existing_raw in raw_output_dir.glob("*.json"):
+            existing_raw.unlink(missing_ok=True)
+
         mock_mode = options.get("mock", False)
         repeats = options.get("repeats", 2)
         skip_parse = options.get("skip_parse", False)
@@ -133,23 +193,26 @@ class Command(BaseCommand):
             return
 
         expected_sentences = parse_expected_file(expected_path)
+        expected_drafts = load_expected_drafts(expected_drafts_path)
         customer_keywords = extract_customer_keywords()
 
         temp_dir = Path(tempfile.gettempdir()) / "kadai_khata_voice_probe"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
-        self.write_out("=" * 100, style_func=self.style.MIGRATE_HEADING)
-        self.write_out(" Kadai Khata - Muse Voice Transcribe 5-Variant Benchmark Probe", style_func=self.style.MIGRATE_HEADING)
-        self.write_out("=" * 100, style_func=self.style.MIGRATE_HEADING)
+        self.write_out("=" * 110, style_func=self.style.MIGRATE_HEADING)
+        self.write_out(" Kadai Khata - Muse Voice Transcribe 5-Variant Benchmark Probe (Strict Verification)", style_func=self.style.MIGRATE_HEADING)
+        self.write_out("=" * 110, style_func=self.style.MIGRATE_HEADING)
         self.write_out(f"Mode: {'MOCK (Offline)' if mock_mode else 'LIVE (Meta Model API)'}")
         self.write_out(f"Repeats per sample: {repeats}")
         self.write_out(f"Samples directory: {samples_dir}")
-        self.write_out(f"Expected labels: {list(expected_sentences.keys())}")
+        self.write_out(f"Raw output directory: {raw_output_dir}")
+        self.write_out(f"Expected sentences: {expected_sentences}")
         self.write_out(f"Customer keywords: {customer_keywords}\n")
 
         # Convert samples
         self.write_out("[Audio Conversion] Converting samples to 24kHz mono 16-bit WAV...", style_func=self.style.HTTP_INFO)
         wav_files: Dict[str, Path] = {}
+        ffprobe_durations: Dict[str, float] = {}
         for label in sorted(expected_sentences.keys()):
             src_mp4 = samples_dir / f"{label}.mp4"
             if not src_mp4.exists():
@@ -158,7 +221,8 @@ class Command(BaseCommand):
             wav_path = convert_audio_to_wav(src_mp4, output_dir=temp_dir)
             wav_files[label] = wav_path
             dur = get_audio_duration_seconds(wav_path)
-            self.write_out(f"  Converted {src_mp4.name} -> {wav_path.name} ({dur:.2f}s)")
+            ffprobe_durations[label] = dur
+            self.write_out(f"  Converted {src_mp4.name} -> {wav_path.name} (ffprobe: {dur:.3f}s)")
 
         if not wav_files:
             self.write_err("No audio files could be converted. Aborting.", style_func=self.style.ERROR)
@@ -173,20 +237,22 @@ class Command(BaseCommand):
             ("e", "tamil_english_keywords", ["Tamil", "English"], customer_keywords, "languageBias ['Tamil','English'] + keywords"),
         ]
 
-        variant_results: Dict[str, List[Dict[str, Any]]] = {v[0]: [] for v in variants}
-
-        self.write_out(f"\n[Live Probe] Executing {len(variants)} variants x {len(wav_files)} samples x {repeats} repeats ({len(variants)*len(wav_files)*repeats} calls)...", style_func=self.style.HTTP_INFO)
+        total_calls = len(variants) * len(wav_files) * repeats
+        self.write_out(f"\n[Execution] Executing {len(variants)} variants x {len(wav_files)} samples x {repeats} repeats = {total_calls} calls...", style_func=self.style.HTTP_INFO)
 
         for var_key, var_name, lang_bias, kw, desc in variants:
             self.write_out(f"\n>>> Running Variant ({var_key}): {desc} ...")
             for rep in range(1, repeats + 1):
-                for label, wav_path in sorted(wav_files.items()):
-                    expected = expected_sentences.get(label, "")
+                for label in sorted(wav_files.keys()):
+                    wav_path = wav_files[label]
+                    expected_sent = expected_sentences.get(label, "")
+                    ffprobe_dur = ffprobe_durations.get(label, 0.0)
+
                     try:
                         transcribe_res = transcribe_audio_file(
                             wav_path=wav_path,
                             file_label=label,
-                            expected_text=expected,
+                            expected_text=expected_sent,
                             variation=var_name,
                             language_bias=lang_bias,
                             keywords=kw,
@@ -195,73 +261,123 @@ class Command(BaseCommand):
                         transcript_text = transcribe_res.transcript.strip()
                         script = transcribe_res.script
                         lat_ms = transcribe_res.latency_ms
+                        api_dur_ms = transcribe_res.audio_duration_ms
 
                         # Parse in LIVE mode without saving
                         drafts = []
                         run_passed = False
                         eval_note = ""
+                        expected_specs = expected_drafts.get(label, [])
+
                         if not skip_parse and transcript_text:
                             parse_mode = "mock" if mock_mode else "live"
                             parse_res = parse_text(transcript_text, save=False, mode=parse_mode)
                             drafts = parse_res.drafts
-                            expected_specs = EXPECTED_ENTRIES.get(label, [])
                             run_passed, eval_note = evaluate_sample_run(drafts, expected_specs)
 
-                        record = {
-                            "variant_key": var_key,
-                            "variant_name": var_name,
-                            "desc": desc,
-                            "repeat": rep,
+                        # Save raw JSON file per call (no API key stored)
+                        raw_call_filename = f"{label}_{var_key}_rep{rep}.json"
+                        raw_call_path = raw_output_dir / raw_call_filename
+                        raw_record = {
                             "sample": label,
-                            "expected": expected,
+                            "variant": var_key,
+                            "variant_name": var_name,
+                            "variant_desc": desc,
+                            "repeat": rep,
+                            "request_settings": {
+                                "model": "muse-voice-transcribe-1.0",
+                                "audioEncoding": "WAV",
+                                "mode": "PUSH_TO_TALK",
+                                "languageBias": lang_bias,
+                                "keywords": kw,
+                            },
+                            "sessionId": transcribe_res.session_id,
                             "transcript": transcript_text,
                             "script": script,
+                            "audioDurationMs": api_dur_ms,
+                            "ffprobe_duration_sec": ffprobe_dur,
                             "latency_ms": lat_ms,
-                            "audio_seconds": transcribe_res.audio_seconds,
-                            "estimated_cost": transcribe_res.estimated_cost,
-                            "drafts": drafts,
+                            "raw_response": transcribe_res.raw_response,
+                            "expected_sentence": expected_sent,
+                            "expected_drafts": [
+                                {
+                                    "customer": s["customer"],
+                                    "kind": s["kind"],
+                                    "amount": str(s["amount"]),
+                                }
+                                for s in expected_specs
+                            ],
+                            "got_drafts": [
+                                {
+                                    "customer": d.customer_name,
+                                    "kind": d.kind,
+                                    "amount": str(d.amount),
+                                    "note": getattr(d, "note", ""),
+                                }
+                                for d in drafts
+                            ],
                             "run_passed": run_passed,
                             "eval_note": eval_note,
                         }
-                        variant_results[var_key].append(record)
+                        with open(raw_call_path, "w", encoding="utf-8") as rf:
+                            json.dump(raw_record, rf, indent=2, ensure_ascii=False)
 
                         status_str = "PASS" if run_passed else "FAIL"
                         status_styled = self.style.SUCCESS(f"[{status_str}]") if run_passed else self.style.WARNING(f"[{status_str}]")
+                        dur_disp = f"API:{api_dur_ms}ms / ffprobe:{ffprobe_dur:.2f}s"
                         self.write_out(
-                            f"  Rep {rep} | {label} | {lat_ms:.0f}ms | {script:<6} | {status_styled} Got: '{transcript_text}'"
+                            f"  Rep {rep} | {label} | {lat_ms:.0f}ms | {dur_disp} | {script:<6} | {status_styled} Got: '{transcript_text}'"
                         )
                     except Exception as exc:
                         self.write_err(f"  Rep {rep} | {label} | ERROR: {exc}", style_func=self.style.ERROR)
 
-        # Print Table 1: Per-Sample Run Details
-        self.write_out("\n" + "=" * 135, style_func=self.style.MIGRATE_HEADING)
-        self.write_out(" TABLE 1: PER-SAMPLE RUN DETAILS (ALL 5 VARIANTS x 4 SAMPLES x 2 REPEATS)", style_func=self.style.MIGRATE_HEADING)
-        self.write_out("=" * 135, style_func=self.style.MIGRATE_HEADING)
+        # -----------------------------------------------------------------------------------------
+        # GENERATE CODE-GENERATED RESULTS TABLES DIRECTLY FROM THE SAVED JSON FILES ONLY
+        # -----------------------------------------------------------------------------------------
+        self.write_out("\n" + "=" * 145, style_func=self.style.MIGRATE_HEADING)
+        self.write_out(" TABLE 1: PER-SAMPLE RUN DETAILS (CODE-GENERATED STRICTLY FROM tests/voice_samples/_raw/*.json)", style_func=self.style.MIGRATE_HEADING)
+        self.write_out("=" * 145, style_func=self.style.MIGRATE_HEADING)
 
-        row_header = "{:<4} | {:<3} | {:<6} | {:<55} | {:<8} | {:<8} | {:<7}"
-        row_format = "{:<4} | {:<3} | {:<6} | {:<55} | {:<8} | {:<8} | {:<7}"
-        self.write_out(row_header.format("Var", "Rep", "Sample", "Transcript", "Script", "Latency", "Parsed"))
-        self.write_out("-" * 135)
+        saved_files = sorted(raw_output_dir.glob("*.json"))
+        loaded_records: List[Dict[str, Any]] = []
+        for sf in saved_files:
+            with open(sf, "r", encoding="utf-8") as rf:
+                loaded_records.append(json.load(rf))
 
-        for var_key, _, _, _, _ in variants:
-            records = variant_results[var_key]
-            for r in records:
-                t_trunc = (r["transcript"][:52] + "...") if len(r["transcript"]) > 55 else r["transcript"]
-                pass_label = "PASS" if r["run_passed"] else "FAIL"
-                lat_str = f"{r['latency_ms']:.0f}ms"
-                self.write_out(
-                    row_format.format(
-                        f"({r['variant_key']})",
-                        f"R{r['repeat']}",
-                        r["sample"],
-                        t_trunc,
-                        r["script"],
-                        lat_str,
-                        pass_label,
-                    )
-                )
+        # Sort by variant, sample, repeat
+        loaded_records.sort(key=lambda r: (r.get("variant", ""), r.get("sample", ""), r.get("repeat", 0)))
 
-        # Print Table 2: 5-Variant Summary (8 runs each)
+        row_header = "{:<6} | {:<4} | {:<3} | {:<22} | {:<45} | {:<32} | {:<32} | {:<6}"
+        row_fmt = "{:<6} | {:<4} | {:<3} | {:<22} | {:<45} | {:<32} | {:<32} | {:<6}"
+
+        self.write_out(row_header.format("Sample", "Var", "Rep", "audioDurationMs (ffprobe)", "Transcript", "Expected Drafts", "Got Drafts", "Pass"))
+        self.write_out("-" * 175)
+
+        for rec in loaded_records:
+            s_name = rec.get("sample", "")
+            v_key = f"({rec.get('variant', '')})"
+            r_num = f"R{rec.get('repeat', '')}"
+
+            api_ms = rec.get("audioDurationMs")
+            api_ms_str = f"{api_ms}ms" if api_ms is not None else "N/A"
+            ff_sec = rec.get("ffprobe_duration_sec", 0.0)
+            dur_str = f"{api_ms_str} ({ff_sec:.2f}s)"
+
+            tr = rec.get("transcript", "")
+            tr_trunc = (tr[:42] + "...") if len(tr) > 45 else tr
+
+            exp_str = format_drafts_summary(rec.get("expected_drafts", []))
+            exp_trunc = (exp_str[:30] + "...") if len(exp_str) > 32 else exp_str
+
+            got_str = format_drafts_summary(rec.get("got_drafts", []))
+            got_trunc = (got_str[:30] + "...") if len(got_str) > 32 else got_str
+
+            passed = rec.get("run_passed", False)
+            pass_str = "PASS" if passed else "FAIL"
+
+            self.write_out(row_fmt.format(s_name, v_key, r_num, dur_str, tr_trunc, exp_trunc, got_trunc, pass_str))
+
+        # Table 2: Per-Variant Totals
         self.write_out("\n" + "=" * 115, style_func=self.style.MIGRATE_HEADING)
         self.write_out(" TABLE 2: 5-VARIANT PERFORMANCE SUMMARY (OUT OF 8 RUNS PER VARIANT)", style_func=self.style.MIGRATE_HEADING)
         self.write_out("=" * 115, style_func=self.style.MIGRATE_HEADING)
@@ -271,20 +387,25 @@ class Command(BaseCommand):
         self.write_out(summary_header.format("Var", "Configuration Description", "Runs Passed", "Pass Rate", "Avg Latency", "Script Distribution"))
         self.write_out("-" * 115)
 
-        variant_scores: Dict[str, int] = {}
+        variant_map: Dict[str, List[Dict[str, Any]]] = {v[0]: [] for v in variants}
+        for rec in loaded_records:
+            vk = rec.get("variant", "")
+            if vk in variant_map:
+                variant_map[vk].append(rec)
+
         best_variant = None
         max_passed = -1
+        tie_candidates = []
 
         for var_key, var_name, _, _, desc in variants:
-            records = variant_results[var_key]
+            records = variant_map[var_key]
             total_runs = len(records)
-            passed_runs = sum(1 for r in records if r["run_passed"])
-            variant_scores[var_key] = passed_runs
+            passed_runs = sum(1 for r in records if r.get("run_passed", False))
 
             rate_pct = f"{(passed_runs / total_runs * 100):.1f}%" if total_runs > 0 else "0.0%"
-            avg_lat = f"{(sum(r['latency_ms'] for r in records) / total_runs):.0f}ms" if total_runs > 0 else "0ms"
+            avg_lat = f"{(sum(r.get('latency_ms', 0) for r in records) / total_runs):.0f}ms" if total_runs > 0 else "0ms"
 
-            scripts = [r["script"] for r in records]
+            scripts = [r.get("script", "") for r in records]
             script_dist = f"T:{scripts.count('Tamil')}/M:{scripts.count('mixed')}/O:{scripts.count('unknown')+scripts.count('Latin')}"
 
             self.write_out(
@@ -301,10 +422,31 @@ class Command(BaseCommand):
             if passed_runs > max_passed:
                 max_passed = passed_runs
                 best_variant = (var_key, desc, passed_runs, total_runs)
+                tie_candidates = [(var_key, desc, passed_runs, total_runs)]
+            elif passed_runs == max_passed and max_passed > 0:
+                tie_candidates.append((var_key, desc, passed_runs, total_runs))
 
         self.write_out("-" * 115)
 
         # Conclusion & Default Selection
+        if len(tie_candidates) > 1:
+            self.write_out(
+                f"\n>>> Tie detected among {len(tie_candidates)} variants with {max_passed}/8 passed runs:",
+                style_func=self.style.WARNING,
+            )
+            for c_vk, c_desc, c_p, c_tot in tie_candidates:
+                self.write_out(f"    - ({c_vk}) {c_desc}: {c_p}/{c_tot}")
+            # Tie breaking preference: prefer variant with Tamil bias + keywords (variant d)
+            preferred = [c for c in tie_candidates if c[0] == "d"]
+            if preferred:
+                best_variant = preferred[0]
+                self.write_out(
+                    f"Tie-breaker rule: Prefer variant (d) (Tamil bias + keywords) for regional phonetic grounding.",
+                    style_func=self.style.SUCCESS,
+                )
+            else:
+                best_variant = tie_candidates[0]
+
         if best_variant:
             self.write_out(
                 f"\n>>> Best Performing Variant: ({best_variant[0]}) {best_variant[1]} with {best_variant[2]}/{best_variant[3]} passed runs.",

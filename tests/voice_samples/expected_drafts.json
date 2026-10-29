@@ -1,0 +1,35 @@
+{
+  "s1": [
+    {
+      "customer": "Ravi",
+      "kind": "credit_given",
+      "amount": "500.00"
+    }
+  ],
+  "s2": [
+    {
+      "customer": "Mani",
+      "kind": "payment_received",
+      "amount": "200.00"
+    },
+    {
+      "customer": "Selvi",
+      "kind": "credit_given",
+      "amount": "300.00"
+    }
+  ],
+  "s3": [
+    {
+      "customer": "Murugan",
+      "kind": "credit_given",
+      "amount": "400.00"
+    }
+  ],
+  "s4": [
+    {
+      "customer": "Bala",
+      "kind": "payment_received",
+      "amount": "1000.00"
+    }
+  ]
+}
