@@ -137,7 +137,11 @@ class Command(BaseCommand):
         show_failures = options["show_failures"]
 
         if options["compare_providers"]:
-            self.run_provider_comparison(repeat=repeat, show_failures=show_failures)
+            self.run_provider_comparison(
+                repeat=repeat,
+                show_failures=show_failures,
+                meta_effort=options["effort"],
+            )
             return
 
         if options["compare"]:
@@ -196,9 +200,9 @@ class Command(BaseCommand):
         show_failures: bool = False,
         provider: Optional[str] = None,
     ) -> Dict[str, Any]:
-        if effort:
+        if effort and effort.lower() not in ("none", "default"):
             settings.META_REASONING_EFFORT = effort
-        elif effort == "":
+        else:
             settings.META_REASONING_EFFORT = None
 
         effective_provider = (
@@ -381,7 +385,12 @@ class Command(BaseCommand):
             "failures": failures,
         }
 
-    def run_provider_comparison(self, repeat: int = 1, show_failures: bool = False):
+    def run_provider_comparison(
+        self,
+        repeat: int = 1,
+        show_failures: bool = False,
+        meta_effort: Optional[str] = None,
+    ):
         """Run all 49 sentences (golden 20 + heldout 14 + realistic 15) once on Meta vs Partner."""
         base_dir = settings.BASE_DIR
         cases = []
@@ -391,10 +400,12 @@ class Command(BaseCommand):
                 with open(path, "r", encoding="utf-8") as f:
                     cases.extend(json.load(f))
 
-        self.write_msg(self.style.NOTICE(f"\n[1/2] Benchmarking META MODEL API backend (Muse Spark 1.3)..."))
+        effort_label = meta_effort if meta_effort and meta_effort.lower() not in ("none", "default") else "default"
+        self.write_msg(self.style.NOTICE(f"\n[1/2] Benchmarking META MODEL API backend (Muse Spark 1.3, Meta Effort: {effort_label})..."))
         res_meta = self.evaluate_dataset(
             cases,
-            title=f"{len(cases)} Sentences - Meta Model API (Muse Spark 1.3)",
+            title=f"{len(cases)} Sentences - Meta Model API (Muse Spark 1.3, Effort: {effort_label})",
+            effort=meta_effort,
             quiet_table=False,
             repeat=repeat,
             show_failures=show_failures,
@@ -405,25 +416,26 @@ class Command(BaseCommand):
         res_partner = self.evaluate_dataset(
             cases,
             title=f"{len(cases)} Sentences - Baseten (Muse Spark Open)",
+            effort=None,
             quiet_table=False,
             repeat=repeat,
             show_failures=show_failures,
             provider="partner",
         )
 
-        self.write_msg(self.style.NOTICE(f"\n=== BACKEND ENGINE BENCHMARK COMPARISON ({len(cases)} Sentences x {repeat} Run) ==="))
-        self.write_msg("=" * 100)
-        self.write_msg(f"{'Metric':<32} | {'Meta Model API (Spark 1.3)':<30} | {'Baseten (Spark Open)':<28}")
-        self.write_msg("-" * 100)
-        self.write_msg(f"{'Overall Accuracy':<32} | {res_meta['overall_accuracy']:<29.1f}% | {res_partner['overall_accuracy']:<27.1f}%")
-        self.write_msg(f"{'Direction Accuracy':<32} | {res_meta['direction_accuracy']:<29.1f}% | {res_partner['direction_accuracy']:<27.1f}%")
-        self.write_msg(f"{'Amount Accuracy':<32} | {res_meta['amount_accuracy']:<29.1f}% | {res_partner['amount_accuracy']:<27.1f}%")
-        self.write_msg(f"{'No-Entry Correctness':<32} | {res_meta['no_entry_accuracy']:<29.1f}% | {res_partner['no_entry_accuracy']:<27.1f}%")
-        self.write_msg(f"{'False-Positive Count':<32} | {res_meta['false_positives']:<30} | {res_partner['false_positives']:<28}")
-        self.write_msg(f"{'Average Latency':<32} | {res_meta['avg_latency']:<27.1f} ms | {res_partner['avg_latency']:<25.1f} ms")
-        self.write_msg(f"{'Average Total Tokens':<32} | {res_meta['avg_tokens']:<30.1f} | {res_partner['avg_tokens']:<28.1f}")
-        self.write_msg(f"{'  (incl. Reasoning Tokens)':<32} | {res_meta['avg_reasoning_tokens']:<30.1f} | {res_partner['avg_reasoning_tokens']:<28.1f}")
-        self.write_msg("=" * 100)
+        self.write_msg(self.style.NOTICE(f"\n=== BACKEND ENGINE BENCHMARK COMPARISON ({len(cases)} Sentences x {repeat} Run | Meta Effort: {effort_label}) ==="))
+        self.write_msg("=" * 105)
+        self.write_msg(f"{'Metric':<32} | {f'Meta Spark 1.3 ({effort_label})':<34} | {'Baseten Spark Open':<30}")
+        self.write_msg("-" * 105)
+        self.write_msg(f"{'Overall Accuracy':<32} | {res_meta['overall_accuracy']:<33.1f}% | {res_partner['overall_accuracy']:<29.1f}%")
+        self.write_msg(f"{'Direction Accuracy':<32} | {res_meta['direction_accuracy']:<33.1f}% | {res_partner['direction_accuracy']:<29.1f}%")
+        self.write_msg(f"{'Amount Accuracy':<32} | {res_meta['amount_accuracy']:<33.1f}% | {res_partner['amount_accuracy']:<29.1f}%")
+        self.write_msg(f"{'No-Entry Correctness':<32} | {res_meta['no_entry_accuracy']:<33.1f}% | {res_partner['no_entry_accuracy']:<29.1f}%")
+        self.write_msg(f"{'False-Positive Count':<32} | {res_meta['false_positives']:<34} | {res_partner['false_positives']:<30}")
+        self.write_msg(f"{'Average Latency':<32} | {res_meta['avg_latency']:<31.1f} ms | {res_partner['avg_latency']:<27.1f} ms")
+        self.write_msg(f"{'Average Total Tokens':<32} | {res_meta['avg_tokens']:<34.1f} | {res_partner['avg_tokens']:<30.1f}")
+        self.write_msg(f"{'  (incl. Reasoning Tokens)':<32} | {res_meta['avg_reasoning_tokens']:<34.1f} | {res_partner['avg_reasoning_tokens']:<30.1f}")
+        self.write_msg("=" * 105)
 
     def run_comparison(self, repeat: int = 1, show_failures: bool = False):
         """Run all 34 sentences across N repeats: default reasoning effort vs minimal effort."""

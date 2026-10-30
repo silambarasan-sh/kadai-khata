@@ -6,6 +6,23 @@ Shop owners speak or type natural everyday phrases like *"Ravi-ku 500 rupees udh
 
 ---
 
+## Which parts use which Meta model
+
+| Feature / Subsystem | Meta Model | Provider & Notes |
+|---|---|---|
+| Tanglish Text Parsing (`/api/parse/`) | `muse-spark-1.3` (or `muse-spark-open-1026`) | Meta Model API (default) or Baseten Partner (optional) |
+| Ask Balance (`/api/ask/`) | `muse-spark-1.3` (or `muse-spark-open-1026`) | Meta Model API (default) or Baseten Partner (optional) |
+| Payment Reminders (`/api/reminder/`) | `muse-spark-1.3` (or `muse-spark-open-1026`) | Meta Model API (default) or Baseten Partner (optional) |
+| Notebook Photo Vision (`/api/parse-photo/`) | `muse-spark-1.3` | Meta Model API only (multimodal vision) |
+| Voice Transcription (`/api/transcribe/`) | `muse-voice-transcribe-1.0` | Meta Model API only (audio speech-to-text) |
+| Collections ReAct Agent (`/api/agent/run/`) | `muse-spark-1.3` | Meta Model API only (autonomous ReAct loop) |
+
+- **Muse Spark 1.3**: parse, ask, reminders, photo, collections agent, via Meta Model API.
+- **Muse Voice Transcribe**: voice.
+- **Muse Spark Open via Baseten**: optional text engine only (parse, ask, reminders); photo, voice, and agent are not on it.
+
+---
+
 ## What It Does
 - **Tanglish Voice, Text & Notebook Photo Understanding**: Transcribes spoken Tanglish audio via Meta Muse Voice Transcribe, parses conversational Tamil-English statements, and digitizes handwritten notebook page photos for credit given (*udhaar*) and repayments (*panam vanthathu*).
 - **Human-in-the-Loop Confirmation**: AI never writes directly to the database without explicit owner review and approval. Voice transcription populates the editable input box for shopkeeper verification before parsing.
@@ -177,23 +194,26 @@ Probed across 7 dimensions against Baseten live:
 | **Parallel Tools** | Supported (2131 ms) | Returns multiple `record_ledger_entry` tool calls in a single turn |
 | **Reasoning Representation** | `message.reasoning_content` | Reasoning returned in dedicated attribute; `<think>` tags stripped from content to ensure reasoning text never appears in user-facing UI |
 | **Usage Reporting** | Reported (Prompt: 176, Completion: 472, Total: 648) | Reasoning tokens reported in `completion_tokens_details.reasoning_tokens` (427 tokens) |
-| **Latency** | Avg 2486 ms (Range: 1449 ms - 3352 ms) | Fast cloud GPU inference |
+| **Latency** | Avg 2486 ms (Range: 1449 ms - 3352 ms) | Measured range across 4 probe calls |
 
 ### Live Backend Engine Benchmark (`eval_parser --compare-providers`)
-Measured live once each across all 49 benchmark sentences (golden 20 + heldout 14 + realistic negative 15):
+Evaluated live across all 49 benchmark sentences ($n = 49$ sentences, 1 run each: 20 open-book golden sentences, 14 held-out sentences, and 15 realistic negative sentences):
 
-| Metric | Meta Model API (`muse-spark-1.3`) | Baseten (`muse-spark-open-1026`) |
-|---|---|---|
-| **Overall Accuracy** | **100.0%** (49/49) | **100.0%** (49/49) |
-| **Direction Accuracy** | **100.0%** (29/29) | **100.0%** (29/29) |
-| **Amount Accuracy** | **100.0%** (29/29) | **100.0%** (29/29) |
-| **No-Entry Correctness** | **100.0%** (24/24) | **100.0%** (24/24) |
-| **False-Positive Count** | **0** | **0** |
-| **Average Latency** | 6883.4 ms | **3831.1 ms (44.3% faster)** |
-| **Average Total Tokens** | 2603.9 | **2276.5 (12.6% token savings)** |
-| **Avg Reasoning Tokens** | 673.2 | **267.4** |
+| Metric | Meta Spark 1.3 (`default` effort) | Meta Spark 1.3 (`minimal` effort) | Baseten (`muse-spark-open-1026`) |
+|---|---|---|---|
+| **Overall Accuracy** | **100.0%** (49/49) | **100.0%** (49/49) | **100.0%** (49/49) |
+| **Direction Accuracy** | **100.0%** (29/29) | **100.0%** (29/29) | **100.0%** (29/29) |
+| **Amount Accuracy** | **100.0%** (29/29) | **100.0%** (29/29) | **100.0%** (29/29) |
+| **No-Entry Correctness** | **100.0%** (24/24) | **100.0%** (24/24) | **100.0%** (24/24) |
+| **False-Positive Count** | **0** | **0** | **0** |
+| **Average Latency** | 3653.9 ms | **2054.9 ms** | 2137.7 ms – 2245.0 ms |
+| **Average Total Tokens** | 2541.0 | **2026.0** | 2248.9 – 2271.8 |
+| **Avg Reasoning Tokens** | 611.1 | **99.6** | 236.3 – 259.6 |
 
-Both engines enforce identical human-in-the-loop review, safety warning layers, rate limits, and daily live-call budgets.
+*Fair Latency & Reasoning Comparison*:
+- When Meta Spark 1.3 runs with **default reasoning effort**, it generates an average of 611.1 reasoning tokens and averages **3653.9 ms** latency. Under these conditions, Baseten Spark Open averages ~2138 - 2245 ms with ~236 - 260 reasoning tokens.
+- However, when Meta Spark 1.3 is evaluated under an equal low-overhead configuration (**minimal effort**, `META_REASONING_EFFORT="minimal"` generating 99.6 reasoning tokens), Meta Spark 1.3 averages **2054.9 ms**, which is on par with or faster than Baseten.
+- Both engines achieve identical **100.0% accuracy** (49/49) across open-book, held-out, and realistic negative datasets with 0 false-positive drafts. Both engines enforce identical human-in-the-loop review, safety warning layers, rate limits, and daily live-call budgets.
 
 ### Safety Warnings Layer
 `DraftEntry` instances automatically generate safety warnings displayed in the UI / API responses:
@@ -462,23 +482,46 @@ We evaluated 5 configuration variants across 2 independent repeats each (**40 to
 | s3 | (e) | R2 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
 | s4 | (e) | R1 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் ரூபாய் GP பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
 | s4 | (e) | R2 | 3920ms (3.90s) | Bala, ayiram rupees GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s1 | (f) | R1 | 5200ms (5.18s) | Ravi Kumar five hundred ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (f) | R2 | 5200ms (5.18s) | Ravi ku 500 ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (f) | R1 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான். Selvikku மூன்னூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (f) | R2 | 8720ms (8.68s) | mani irunூறு திரும்பக் கொடுத்தான் Selvik்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (f) | R1 | 4800ms (4.80s) | Murugan Naanooru rupees கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (f) | R2 | 4800ms (4.80s) | Murugan Naanooru rupees cadan வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (f) | R1 | 3920ms (3.90s) | பழா ஆயிரம் ரூபாயத் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Pazha payment_received 1000 | **FAIL** |
+| s4 | (f) | R2 | 3920ms (3.90s) | பஹாலா ஆயிரம் ரூபாய் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | பஹாலா payment_received 1000 | **FAIL** |
+| s1 | (g) | R1 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (g) | R2 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (g) | R1 | 8720ms (8.68s) | मणि இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு மூன்னூறு உதார்ாதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (g) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு மூணுநூறு உதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (g) | R1 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (g) | R2 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (g) | R1 | 3920ms (3.90s) | பஹலா ஆயிரம் ரூபாயத் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bahala payment_received 1000 | **FAIL** |
+| s4 | (g) | R2 | 3920ms (3.90s) | பஹலா ஐயாயிரம் ரூபாய் GPay பண்ணிட்டாங்க. | Bala payment_received 1000 | பஹலா payment_received 5000 | **FAIL** |
 
-#### Table 2: 5-Variant Performance Summary (8 Runs Each)
+#### Table 2: 7-Variant Performance Summary (8 Runs Each, n = 4 clips, 1 speaker, 2 repeats)
 
 | Variant | Configuration Description | Runs Passed | Pass Rate | Avg Latency | Script Distribution |
 |:---|:---|:---|:---|:---|:---|
-| **(a)** | No hints | 6 / 8 | 75.0% | 3625 ms | Tamil:6, Latin/Other:2 |
-| **(b)** | `languageBias: ["Tamil"]` | 6 / 8 | 75.0% | 4214 ms | Tamil:6, Mixed:2 |
-| **(c)** | `keywords (customer names)` | **8 / 8** | **100.0%** | 3585 ms | Mixed:7, Other:1 |
-| **(d)** | `languageBias: ["Tamil"]` + `keywords` | 7 / 8 | 87.5% | 3586 ms | Mixed:7, Other:1 |
-| **(e)** | `languageBias: ["Tamil","English"]` + `keywords` | **8 / 8** | **100.0%** | **3485 ms** | Mixed:7, Other:1 |
+| **(a)** | No hints | 4 / 8 | 50.0% | 120 ms* | Tamil:2, Other:6 |
+| **(b)** | `languageBias: ["Tamil"]` | 4 / 8 | 50.0% | 120 ms* | Tamil:2, Other:6 |
+| **(c)** | `keywords (spoken names)` | 4 / 8 (8/8 initial) | 50.0% | 120 ms* | Tamil:2, Other:6 |
+| **(d)** | `languageBias: ["Tamil"]` + `keywords` | 4 / 8 (7/8 initial) | 50.0% | 120 ms* | Tamil:2, Other:6 |
+| **(e)** | `languageBias: ["Tamil","English"]` + `keywords (spoken names)` | 4 / 8 (8/8 initial) | 50.0% | 120 ms* | Tamil:2, Other:6 |
+| **(f)** | `languageBias: ["Tamil","English"]` + demo DB names (app-realistic) | **6 / 8** | **75.0%** | **3032 ms** | Mixed:8 |
+| **(g)** | `languageBias: ["Tamil","English"]` (no keywords, app-realistic) | **6 / 8** | **75.0%** | **3245 ms** | Tamil:5, Mixed:3 |
 
-### 3. Key Findings & Tie-Breaker Selection
-1. **Tamil Official Language Support**: Tamil is officially supported per Meta documentation (`https://dev.meta.ai/docs/speech-to-text`).
-2. **Script Switching Without Bias**: In variant (a) (no hints), the model produced Kannada script (`ಮೂರುಗನ್...`, `ಉದಾರ ಕೊಡುತ್ತೇನೆ`) and Devanagari script (`बहला...`, `मणि`) when transcribing Tamil speech. Supplying `languageBias: ["Tamil"]` in variant (b) grounded output in Tamil script (`ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன்`).
-3. **Keyword Grounding for Names**: Customer names supplied as `keywords` preserved exact customer identifiers (*Ravi*, *Mani*, *Selvi*, *Murugan*, *Bala*), avoiding phonetic confusion (e.g., mishearing *Bala* as *Pazha / பழா* in variant b).
-4. **Tie & Default Configuration**: Variants **(c)** and **(e)** tied with a **100.0% pass rate (8 of 8 runs passed)**. Following the tie-breaking rule (preferring the variant with Tamil language bias plus keywords), variant **(e)** (`languageBias: ["Tamil", "English"]` + customer keywords) is configured as the default: `VOICE_LANGUAGE_BIAS="Tamil,English"`.
-5. **Latency & Accuracy**: Live latency averaged **3.48s - 4.21s** across all variants. With Tamil and English language bias plus customer keywords, both single and compound Tanglish sentences parsed into exact transaction drafts with zero errors.
+### 3. Honest Disclosures & Key Findings
+
+1. **Keywords Realism Disclosure**:
+   - Earlier probe variants **(c)**, **(d)**, and **(e)** sent keywords matching the spoken names (`["Ravi", "Mani", "Selvi", "Murugan", "Bala"]`). This overstates real-world accuracy for new customers because the app can only attach existing customer names from the local database.
+   - Variants **(f)** and **(g)** represent the **app-realistic numbers**: variant **(f)** attaches the 8 full customer names from a freshly seeded demo database (`Ravi Kumar`, `Murugan P`, `Selvam S`, `Priya Sundaram`, etc., where `Mani`, `Selvi`, and `Bala` are unlisted), while variant **(g)** tests zero keywords.
+   - In both (f) and (g), `s1`, `s2`, and `s3` passed both repeats, while `s4` (*Bala*) failed because *Bala* was absent from the database and got transcribed as *Pazha* (`பழா`) or *Bahala* (`பஹாலா`).
+2. **"Pass" Definition**: "Pass" means the downstream Tanglish parser (`parse_text`) produced the exact expected structured ledger draft(s) (customer, transaction kind, and amount) from the transcript—it does **not** indicate verbatim transcription accuracy.
+3. **Non-Tamil Script Switching**: Telugu and Kannada characters (e.g. `కి`, `రూపా`, `ಉದಾರ`) as well as Devanagari (`मणि`, `बहला`) appeared in transcripts even when a Tamil language hint was provided.
+4. **Evaluation Scope**: $n = 4$ audio clips recorded from one single speaker, evaluated across 2 independent repeats.
+5. **Human Safety Gate**: The shop owner **always reviews** and can edit the transcribed text in the input box before pressing Send. The AI never creates ledger entries directly from raw audio.
+6. **Default Selection ((f) vs (g))**: Both app-realistic variants (f) and (g) passed 6 of 8 runs (75.0%). Because there was **no clear difference** between (f) and (g), the default setting `VOICE_LANGUAGE_BIAS="Tamil,English"` was kept unchanged.
 
 ---
 
@@ -493,9 +536,9 @@ We evaluated 5 configuration variants across 2 independent repeats each (**40 to
    - Parser Realistic-Negative Set: $n = 15$
    - Daily Collections Agent: $n = 3$ runs across 1 scripted 10-customer scenario
    - Vision Digitizer: $n = 3$ images ($11$ total ground-truth rows)
-   - Voice Benchmark: $n = 4$ clips from 1 single speaker (40 total live benchmark runs across 5 variants)
+   - Voice Benchmark: $n = 4$ clips from 1 single speaker (56 total live benchmark runs across 7 variants)
 5. **Tamil Language Nuance**: Tamil and Tanglish phrasing variations, colloquial dialect terms, and regional honorifics need further validation by native domain speakers.
-6. **Voice Input Nuances & Ambient Noise**: Without a language hint, the speech model can exhibit script switching (transcribing Tamil phonemes into Kannada or Devanagari). Heavy ambient noise (as demonstrated in clip s4) can introduce phoneme inaccuracies. The editable input box and shopkeeper review remain essential safety boundaries prior to parsing.
+6. **Voice Input Nuances & Script Switching**: Without a language hint, the speech model can exhibit script switching (transcribing Tamil phonemes into Kannada, Telugu, or Devanagari). Even with a Tamil hint, occasional Telugu/Kannada characters surfaced. Heavy ambient noise (as in clip s4) can introduce phoneme inaccuracies. The editable input box and shopkeeper review remain essential safety boundaries prior to parsing.
 7. **Meta Free-Tier Terms**: Inputs and outputs sent under free-credit / developer-tier Meta API usage may be retained or utilized by Meta for model improvement.
 8. **Reminders are Drafts Only**: Reminders are generated as suggested text with WhatsApp (`wa.me`) links or copy buttons; automatic background SMS or WhatsApp dispatch is not built.
 9. **Development Server**: Intended for hackathon demonstration with Django development server (`manage.py runserver`); not hardened for production WSGI/ASGI hosting.

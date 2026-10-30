@@ -160,6 +160,12 @@ class Command(BaseCommand):
             help="Number of repetitions per sample (default: 2)",
         )
         parser.add_argument(
+            "--variants",
+            type=str,
+            default="",
+            help="Comma-separated variant keys to run (e.g. 'f,g' or '' for all)",
+        )
+        parser.add_argument(
             "--skip-parse",
             action="store_true",
             help="Skip passing transcripts through parse_text",
@@ -180,13 +186,10 @@ class Command(BaseCommand):
         raw_output_dir = samples_dir / "_raw"
         raw_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Clean raw output directory for fresh verification run
-        for existing_raw in raw_output_dir.glob("*.json"):
-            existing_raw.unlink(missing_ok=True)
-
         mock_mode = options.get("mock", False)
         repeats = options.get("repeats", 2)
         skip_parse = options.get("skip_parse", False)
+        variants_arg = options.get("variants", "").strip()
 
         if not expected_path.exists():
             self.write_err(f"Expected file not found: {expected_path}", style_func=self.style.ERROR)
@@ -196,18 +199,59 @@ class Command(BaseCommand):
         expected_drafts = load_expected_drafts(expected_drafts_path)
         customer_keywords = extract_customer_keywords()
 
+        try:
+            from ledger.models import Customer
+            demo_db_customers = list(Customer.objects.order_by("name").values_list("name", flat=True))
+        except Exception:
+            demo_db_customers = []
+        if not demo_db_customers:
+            demo_db_customers = [
+                "Anitha Ramesh",
+                "Karthik Raja",
+                "Meenakshi Ammal",
+                "Murugan P",
+                "Priya Sundaram",
+                "Ravi Kumar",
+                "Sangeetha V",
+                "Selvam S",
+            ]
+
+        # All 7 Variants:
+        all_variants = [
+            ("a", "no_hints", None, None, "No hints"),
+            ("b", "tamil_only", ["Tamil"], None, "languageBias ['Tamil']"),
+            ("c", "keywords_only", None, customer_keywords, "keywords (spoken names)"),
+            ("d", "tamil_keywords", ["Tamil"], customer_keywords, "languageBias ['Tamil'] + keywords"),
+            ("e", "tamil_english_keywords", ["Tamil", "English"], customer_keywords, "languageBias ['Tamil','English'] + keywords"),
+            ("f", "demo_db_keywords", ["Tamil", "English"], demo_db_customers, "languageBias ['Tamil','English'] + demo DB names"),
+            ("g", "no_keywords", ["Tamil", "English"], None, "languageBias ['Tamil','English'] (no keywords)"),
+        ]
+
+        if variants_arg:
+            selected_keys = [k.strip().lower() for k in variants_arg.split(",") if k.strip()]
+            variants_to_run = [v for v in all_variants if v[0] in selected_keys]
+        else:
+            selected_keys = [v[0] for v in all_variants]
+            variants_to_run = all_variants
+
+        # Clean only the raw output files for variants being executed
+        for v_key in selected_keys:
+            for existing_raw in raw_output_dir.glob(f"*_{v_key}_*.json"):
+                existing_raw.unlink(missing_ok=True)
+
         temp_dir = Path(tempfile.gettempdir()) / "kadai_khata_voice_probe"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         self.write_out("=" * 110, style_func=self.style.MIGRATE_HEADING)
-        self.write_out(" Kadai Khata - Muse Voice Transcribe 5-Variant Benchmark Probe (Strict Verification)", style_func=self.style.MIGRATE_HEADING)
+        self.write_out(" Kadai Khata - Muse Voice Transcribe Benchmark Probe (Strict Verification)", style_func=self.style.MIGRATE_HEADING)
         self.write_out("=" * 110, style_func=self.style.MIGRATE_HEADING)
         self.write_out(f"Mode: {'MOCK (Offline)' if mock_mode else 'LIVE (Meta Model API)'}")
         self.write_out(f"Repeats per sample: {repeats}")
         self.write_out(f"Samples directory: {samples_dir}")
         self.write_out(f"Raw output directory: {raw_output_dir}")
         self.write_out(f"Expected sentences: {expected_sentences}")
-        self.write_out(f"Customer keywords: {customer_keywords}\n")
+        self.write_out(f"Spoken customer keywords (c-e): {customer_keywords}")
+        self.write_out(f"Demo DB customer keywords (f): {demo_db_customers}\n")
 
         # Convert samples
         self.write_out("[Audio Conversion] Converting samples to 24kHz mono 16-bit WAV...", style_func=self.style.HTTP_INFO)
@@ -228,19 +272,10 @@ class Command(BaseCommand):
             self.write_err("No audio files could be converted. Aborting.", style_func=self.style.ERROR)
             return
 
-        # 5 Variants:
-        variants = [
-            ("a", "no_hints", None, None, "No hints"),
-            ("b", "tamil_only", ["Tamil"], None, "languageBias ['Tamil']"),
-            ("c", "keywords_only", None, customer_keywords, "keywords (names)"),
-            ("d", "tamil_keywords", ["Tamil"], customer_keywords, "languageBias ['Tamil'] + keywords"),
-            ("e", "tamil_english_keywords", ["Tamil", "English"], customer_keywords, "languageBias ['Tamil','English'] + keywords"),
-        ]
+        total_calls = len(variants_to_run) * len(wav_files) * repeats
+        self.write_out(f"\n[Execution] Executing {len(variants_to_run)} variants x {len(wav_files)} samples x {repeats} repeats = {total_calls} calls...", style_func=self.style.HTTP_INFO)
 
-        total_calls = len(variants) * len(wav_files) * repeats
-        self.write_out(f"\n[Execution] Executing {len(variants)} variants x {len(wav_files)} samples x {repeats} repeats = {total_calls} calls...", style_func=self.style.HTTP_INFO)
-
-        for var_key, var_name, lang_bias, kw, desc in variants:
+        for var_key, var_name, lang_bias, kw, desc in variants_to_run:
             self.write_out(f"\n>>> Running Variant ({var_key}): {desc} ...")
             for rep in range(1, repeats + 1):
                 for label in sorted(wav_files.keys()):
@@ -379,7 +414,7 @@ class Command(BaseCommand):
 
         # Table 2: Per-Variant Totals
         self.write_out("\n" + "=" * 115, style_func=self.style.MIGRATE_HEADING)
-        self.write_out(" TABLE 2: 5-VARIANT PERFORMANCE SUMMARY (OUT OF 8 RUNS PER VARIANT)", style_func=self.style.MIGRATE_HEADING)
+        self.write_out(f" TABLE 2: {len(all_variants)}-VARIANT PERFORMANCE SUMMARY (OUT OF 8 RUNS PER VARIANT)", style_func=self.style.MIGRATE_HEADING)
         self.write_out("=" * 115, style_func=self.style.MIGRATE_HEADING)
 
         summary_header = "{:<4} | {:<42} | {:<12} | {:<10} | {:<12} | {:<15}"
@@ -387,7 +422,7 @@ class Command(BaseCommand):
         self.write_out(summary_header.format("Var", "Configuration Description", "Runs Passed", "Pass Rate", "Avg Latency", "Script Distribution"))
         self.write_out("-" * 115)
 
-        variant_map: Dict[str, List[Dict[str, Any]]] = {v[0]: [] for v in variants}
+        variant_map: Dict[str, List[Dict[str, Any]]] = {v[0]: [] for v in all_variants}
         for rec in loaded_records:
             vk = rec.get("variant", "")
             if vk in variant_map:
@@ -397,7 +432,7 @@ class Command(BaseCommand):
         max_passed = -1
         tie_candidates = []
 
-        for var_key, var_name, _, _, desc in variants:
+        for var_key, var_name, _, _, desc in all_variants:
             records = variant_map[var_key]
             total_runs = len(records)
             passed_runs = sum(1 for r in records if r.get("run_passed", False))

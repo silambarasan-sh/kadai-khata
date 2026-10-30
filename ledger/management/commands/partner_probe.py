@@ -360,7 +360,7 @@ class Command(BaseCommand):
             ("Parallel Tools", "Working" if parallel_working else "Single only", f"{results.get('parallel_tools', {}).get('count', 0)} tools in single turn"),
             ("Reasoning Location", reasoning_carrier, "Safety guard: ensure stripped before user display"),
             ("Usage Reporting", f"Prompt/Completion/Total ({results.get('usage', {}).get('total_tokens')})", f"Reasoning tokens: {reasoning_tokens_str}"),
-            ("Latency", f"Avg {avg_lat:.0f}ms (Range: {min(valid_lats):.0f}ms - {max(valid_lats):.0f}ms)", "Fast GPU inference on Baseten"),
+            ("Latency", f"Avg {avg_lat:.0f}ms (Range: {min(valid_lats):.0f}ms - {max(valid_lats):.0f}ms)", f"Measured range across {len(valid_lats)} calls"),
         ]
 
         for col1, col2, col3 in table_rows:

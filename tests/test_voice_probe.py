@@ -273,8 +273,8 @@ def test_voice_probe_command_mock_mode():
     call_command("voice_probe", mock=True, stdout=out)
     output = out.getvalue()
 
-    assert "Kadai Khata - Muse Voice Transcribe 5-Variant Benchmark Probe" in output
+    assert "Kadai Khata - Muse Voice Transcribe" in output
     assert "TABLE 1: PER-SAMPLE RUN DETAILS" in output
-    assert "TABLE 2: 5-VARIANT PERFORMANCE SUMMARY" in output
+    assert "PERFORMANCE SUMMARY" in output
     assert "Best Performing Variant:" in output
 

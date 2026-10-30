@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kadai Khata - Tanglish Udhaar Ledger</title>
-    <meta name="description" content="Kadai Khata - Mobile Tanglish Udhaar & Credit Ledger with Meta AI verification for neighborhood shop owners.">
+    <meta name="description"
+        content="Kadai Khata - Mobile Tanglish Udhaar & Credit Ledger with Meta AI verification for neighborhood shop owners.">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
+
 <body>
     <div id="app" class="app-container">
         <!-- Top Sticky Header -->
@@ -24,7 +27,8 @@
                             <option value="partner">Baseten · Muse Spark Open</option>
                         </select>
                     </div>
-                    <button id="how-it-works-btn" class="how-it-works-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="View technical architecture">
+                    <button id="how-it-works-btn" class="how-it-works-btn" type="button" aria-haspopup="dialog"
+                        aria-expanded="false" title="View technical architecture">
                         <span aria-hidden="true">&#9432;</span> <span data-i18n="howItWorks">How it works</span>
                     </button>
                     <button id="lang-toggle-btn" class="lang-toggle-btn" type="button" aria-label="Toggle Language">
@@ -59,7 +63,8 @@
                 <!-- Big Total Outstanding Card -->
                 <div class="card summary-card">
                     <div class="summary-meta">
-                        <span id="total-outstanding-label" class="summary-label" data-i18n="totalOutstanding">Total Outstanding</span>
+                        <span id="total-outstanding-label" class="summary-label" data-i18n="totalOutstanding">Total
+                            Outstanding</span>
                         <span id="customer-count-badge" class="badge badge-neutral">0 Customers</span>
                     </div>
                     <div class="summary-balance-row">
@@ -80,14 +85,8 @@
                     </div>
                     <form id="ask-form" class="ask-form" onsubmit="return false;">
                         <div class="ask-input-row">
-                            <input
-                                type="text"
-                                id="ask-input"
-                                class="ask-input"
-                                data-i18n-placeholder="askPlaceholder"
-                                placeholder="Ravi evlo baaki?..."
-                                autocomplete="off"
-                            >
+                            <input type="text" id="ask-input" class="ask-input" data-i18n-placeholder="askPlaceholder"
+                                placeholder="Ravi evlo baaki?..." autocomplete="off">
                             <button id="ask-submit-btn" class="btn btn-secondary btn-sm" type="submit">
                                 <span data-i18n="askBtn">Ask</span>
                             </button>
@@ -106,16 +105,11 @@
                 <div class="search-container">
                     <div class="search-input-wrapper">
                         <span class="search-icon" aria-hidden="true">&#128269;</span>
-                        <input
-                            type="search"
-                            id="customer-search-input"
-                            class="search-input"
-                            data-i18n-placeholder="searchPlaceholder"
-                            placeholder="Search by customer name or phone..."
-                            aria-label="Search customers"
-                            autocomplete="off"
-                        >
-                        <button id="search-clear-btn" class="search-clear-btn" type="button" aria-label="Clear search" style="display: none;">&times;</button>
+                        <input type="search" id="customer-search-input" class="search-input"
+                            data-i18n-placeholder="searchPlaceholder" placeholder="Search by customer name or phone..."
+                            aria-label="Search customers" autocomplete="off">
+                        <button id="search-clear-btn" class="search-clear-btn" type="button" aria-label="Clear search"
+                            style="display: none;">&times;</button>
                     </div>
                 </div>
 
@@ -139,21 +133,27 @@
             </section>
 
             <!-- Collections View: Daily Collections Agent -->
-            <section id="collections-view" class="view-section" style="display: none;" aria-labelledby="collections-title">
+            <section id="collections-view" class="view-section" style="display: none;"
+                aria-labelledby="collections-title">
                 <div class="collections-header-card card">
                     <div class="collections-meta-row">
                         <div>
-                            <h2 id="collections-title" class="section-title" data-i18n="collectionsTitle">Daily Collections Review</h2>
-                            <p class="collections-subtitle" data-i18n="collectionsSubtitle">AI proposes who to remind today. Read-only review.</p>
+                            <h2 id="collections-title" class="section-title" data-i18n="collectionsTitle">Daily
+                                Collections Review</h2>
+                            <p class="collections-subtitle" data-i18n="collectionsSubtitle">AI proposes who to remind
+                                today. Read-only review.</p>
                         </div>
                         <div id="collections-status-badge-container" class="collections-badges-top">
-                            <span id="collections-source-badge" class="badge badge-mock" style="display: none;">MOCK</span>
-                            <span id="collections-chain-badge" class="badge badge-success" style="display: none;">&#128279; <span data-i18n="chainValid">Chain valid</span></span>
+                            <span id="collections-source-badge" class="badge badge-mock"
+                                style="display: none;">MOCK</span>
+                            <span id="collections-chain-badge" class="badge badge-success"
+                                style="display: none;">&#128279; <span data-i18n="chainValid">Chain valid</span></span>
                         </div>
                     </div>
                     <div class="collections-action-row">
                         <button id="run-collections-btn" class="btn btn-primary btn-block" type="button">
-                            <span id="run-btn-spinner" class="status-spinner" style="display: none;" aria-hidden="true"></span>
+                            <span id="run-btn-spinner" class="status-spinner" style="display: none;"
+                                aria-hidden="true"></span>
                             <span id="run-btn-text" data-i18n="runCollectionsReview">&#128640; Run today's review</span>
                         </button>
                     </div>
@@ -162,8 +162,10 @@
                 <!-- Summary Stats Bar after run -->
                 <div id="collections-summary-bar" class="collections-summary-bar" style="display: none;">
                     <span id="summary-proposed-chip" class="summary-chip">Proposed: 0</span>
-                    <span id="summary-verified-chip" class="summary-chip summary-chip-success">&#10003; Verified: 0</span>
-                    <span id="summary-rejected-chip" class="summary-chip summary-chip-warning">&#9888; Unverified: 0</span>
+                    <span id="summary-verified-chip" class="summary-chip summary-chip-success">&#10003; Verified:
+                        0</span>
+                    <span id="summary-rejected-chip" class="summary-chip summary-chip-warning">&#9888; Unverified:
+                        0</span>
                 </div>
 
                 <!-- Proposed Plan Cards Container -->
@@ -174,7 +176,8 @@
                 <div id="empty-plan-state" class="empty-state">
                     <div class="empty-icon">&#128197;</div>
                     <h3 data-i18n="noPlanYet">No collections review yet</h3>
-                    <p data-i18n="noPlanHint">Click 'Run today's review' above to analyze outstanding balances and generate verified proposals.</p>
+                    <p data-i18n="noPlanHint">Click 'Run today's review' above to analyze outstanding balances and
+                        generate verified proposals.</p>
                 </div>
 
                 <!-- Collapsible Agent Trace Section -->
@@ -189,7 +192,8 @@
                     </button>
                     <div id="agent-trace-content" class="agent-trace-content" style="display: none;">
                         <div class="trace-audit-banner">
-                            <span class="badge badge-success" id="trace-audit-badge">&#10003; <span data-i18n="chainValid">Chain valid</span></span>
+                            <span class="badge badge-success" id="trace-audit-badge">&#10003; <span
+                                    data-i18n="chainValid">Chain valid</span></span>
                             <span class="trace-audit-note">Append-only audit trail with SHA-256 hash chaining</span>
                         </div>
                         <div id="trace-steps-list" class="trace-steps-list">
@@ -200,15 +204,19 @@
             </section>
 
             <!-- Screen 3: Pending Confirm Cards View / Overlay -->
-            <section id="confirm-view" class="view-section" style="display: none;" aria-labelledby="confirm-section-title">
+            <section id="confirm-view" class="view-section" style="display: none;"
+                aria-labelledby="confirm-section-title">
 
                 <div class="confirm-header-bar">
                     <div>
-                        <h2 id="confirm-section-title" class="section-title" data-i18n="confirmDraftsTitle">Review Draft Entries</h2>
-                        <p class="confirm-subtitle" data-i18n="nothingSavedHint">Nothing is saved to the ledger until you click Confirm.</p>
+                        <h2 id="confirm-section-title" class="section-title" data-i18n="confirmDraftsTitle">Review Draft
+                            Entries</h2>
+                        <p class="confirm-subtitle" data-i18n="nothingSavedHint">Nothing is saved to the ledger until
+                            you click Confirm.</p>
                     </div>
                     <div class="confirm-actions-top">
-                        <button id="confirm-all-btn" class="btn btn-primary btn-sm" type="button" style="display: none;">
+                        <button id="confirm-all-btn" class="btn btn-primary btn-sm" type="button"
+                            style="display: none;">
                             <span data-i18n="confirmAll">Confirm All</span>
                         </button>
                         <button id="discard-all-btn" class="btn btn-secondary btn-sm" type="button">
@@ -228,28 +236,34 @@
 
                 <!-- Photo Privacy Notice -->
                 <div id="photo-privacy-banner" class="photo-privacy-banner" style="display: none;">
-                    <span>&#128274; <span data-i18n="photoPrivacyNotice">Photo is processed in memory and not stored. Use test pages only in demos.</span></span>
+                    <span>&#128274; <span data-i18n="photoPrivacyNotice">Photo is processed in memory and not stored.
+                            Use test pages only in demos.</span></span>
                 </div>
 
                 <!-- Per-Column Total Check Banner -->
                 <div id="photo-total-check-card" class="card photo-total-card" style="display: none;">
                     <div class="photo-total-header">
-                        <span class="photo-total-title">&#128202; <span data-i18n="columnTotalCheck">Per-Column Total Check</span></span>
+                        <span class="photo-total-title">&#128202; <span data-i18n="columnTotalCheck">Per-Column Total
+                                Check</span></span>
                         <span id="photo-total-badge" class="badge">Checking...</span>
                     </div>
                     <div class="photo-total-grid">
                         <div class="total-column-box">
                             <span class="total-col-label" data-i18n="totalUdhaarLabel">Udhaar / கடன்</span>
                             <div class="total-col-values">
-                                <div><span class="value-muted">Drafted:</span> &#8377;<span id="total-drafted-udhaar">0.00</span></div>
-                                <div><span class="value-muted">Written:</span> <span id="total-written-udhaar">-</span></div>
+                                <div><span class="value-muted">Drafted:</span> &#8377;<span
+                                        id="total-drafted-udhaar">0.00</span></div>
+                                <div><span class="value-muted">Written:</span> <span id="total-written-udhaar">-</span>
+                                </div>
                             </div>
                         </div>
                         <div class="total-column-box">
                             <span class="total-col-label" data-i18n="totalJamaLabel">Jama / வரவு</span>
                             <div class="total-col-values">
-                                <div><span class="value-muted">Drafted:</span> &#8377;<span id="total-drafted-jama">0.00</span></div>
-                                <div><span class="value-muted">Written:</span> <span id="total-written-jama">-</span></div>
+                                <div><span class="value-muted">Drafted:</span> &#8377;<span
+                                        id="total-drafted-jama">0.00</span></div>
+                                <div><span class="value-muted">Written:</span> <span id="total-written-jama">-</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -257,14 +271,16 @@
                     <div id="photo-ack-wrapper" class="photo-ack-row" style="display: none;">
                         <label class="photo-ack-label">
                             <input type="checkbox" id="photo-ack-checkbox">
-                            <span data-i18n="photoAckText">I acknowledge column total differences and skipped rows.</span>
+                            <span data-i18n="photoAckText">I acknowledge column total differences and skipped
+                                rows.</span>
                         </label>
                     </div>
                 </div>
 
                 <!-- Cancelled and Unreadable Rows Section -->
                 <div id="photo-exceptions-card" class="card photo-exceptions-card" style="display: none;">
-                    <h4 class="photo-exceptions-title">&#9888; <span data-i18n="skippedRowsTitle">Skipped Rows (Not Drafted)</span></h4>
+                    <h4 class="photo-exceptions-title">&#9888; <span data-i18n="skippedRowsTitle">Skipped Rows (Not
+                            Drafted)</span></h4>
                     <div id="photo-cancelled-list" class="photo-exception-list"></div>
                     <div id="photo-unreadable-list" class="photo-exception-list"></div>
                 </div>
@@ -276,7 +292,8 @@
             </section>
 
             <!-- Screen 4: Customer Detail & Timeline View -->
-            <section id="customer-detail-view" class="view-section" style="display: none;" aria-labelledby="detail-customer-name">
+            <section id="customer-detail-view" class="view-section" style="display: none;"
+                aria-labelledby="detail-customer-name">
                 <div class="detail-header-card">
                     <button id="back-to-home-btn" class="back-nav-btn" type="button" aria-label="Back to customer list">
                         <span aria-hidden="true">&larr;</span> <span data-i18n="back">Back</span>
@@ -294,7 +311,8 @@
                     </div>
                     <div class="detail-actions">
                         <button id="open-reminder-btn" class="btn btn-primary btn-block" type="button">
-                            <span aria-hidden="true">&#128227;</span> <span data-i18n="sendReminder">Draft Reminder</span>
+                            <span aria-hidden="true">&#128227;</span> <span data-i18n="sendReminder">Draft
+                                Reminder</span>
                         </button>
                     </div>
                 </div>
@@ -321,85 +339,60 @@
             <div id="input-status-bar" class="input-status-bar" style="display: none;">
                 <span class="status-spinner" aria-hidden="true"></span>
                 <span id="input-status-text" data-i18n="parsingSentence">Understanding Tanglish transaction...</span>
-                <button id="photo-cancel-btn" class="status-cancel-btn" type="button" style="display: none;" aria-label="Cancel reading photo">Cancel</button>
-                <button id="voice-cancel-btn" class="status-cancel-btn" type="button" style="display: none;" aria-label="Cancel voice recording">Cancel</button>
-            </div>
-
-            <!-- Voice Transcript Review Notice -->
-            <div id="voice-note-banner" class="voice-note-banner" style="display: none;">
-                <div class="voice-note-content">
-                    <span class="voice-note-icon" aria-hidden="true">&#9998;</span>
-                    <div class="voice-note-body">
-                        <strong id="voice-note-prompt" data-i18n="checkWordsThenSend">Check the words, then press Send</strong>
-                        <small class="voice-note-disclaimer" data-i18n="voiceDisclaimer">Voice is transcribed by Meta Muse Voice Transcribe; audio is not stored.</small>
-                    </div>
-                </div>
-                <button id="close-voice-note-btn" class="voice-note-close" type="button" aria-label="Dismiss notice">&times;</button>
+                <button id="photo-cancel-btn" class="status-cancel-btn" type="button" style="display: none;"
+                    aria-label="Cancel reading photo">Cancel</button>
             </div>
 
             <!-- "Try these" chips & sample notebook button for judge evaluation -->
             <div class="sample-chips-row">
                 <div class="chips-label-group">
                     <span class="chips-title" data-i18n="tryThese">Try these:</span>
-                    <button id="try-sample-notebook-btn" class="chip-sample-notebook" type="button" title="Upload tests/vision_samples/newpage3.jpeg">
-                        <span aria-hidden="true">&#128220;</span> <span data-i18n="trySampleNotebook">Try a sample notebook page</span>
+                    <button id="try-sample-notebook-btn" class="chip-sample-notebook" type="button"
+                        title="Upload tests/vision_samples/newpage3.jpeg">
+                        <span aria-hidden="true">&#128220;</span> <span data-i18n="trySampleNotebook">Try a sample
+                            notebook page</span>
                     </button>
                 </div>
                 <div class="chips-list">
-                    <button type="button" class="sample-chip" data-sentence="Ravi 450 udhaar paal packet bread">Ravi 450 udhaar paal packet bread</button>
-                    <button type="button" class="sample-chip" data-sentence="Murugan phonpe-la 300 kuduthaar">Murugan phonpe-la 300 kuduthaar</button>
-                    <button type="button" class="sample-chip" data-sentence="Selvam 1200 rooba arisi moottai udhaar book pannunga">Selvam 1200 rooba arisi moottai udhaar book pannunga</button>
-                    <button type="button" class="sample-chip" data-sentence="Priya 200 cash kuduthaanga">Priya 200 cash kuduthaanga</button>
+                    <button type="button" class="sample-chip" data-sentence="Ravi 450 udhaar paal packet bread">Ravi 450
+                        udhaar paal packet bread</button>
+                    <button type="button" class="sample-chip" data-sentence="Murugan phonpe-la 300 kuduthaar">Murugan
+                        phonpe-la 300 kuduthaar</button>
+                    <button type="button" class="sample-chip"
+                        data-sentence="Selvam 1200 rooba arisi moottai udhaar book pannunga">Selvam 1200 rooba arisi
+                        moottai udhaar book pannunga</button>
+                    <button type="button" class="sample-chip" data-sentence="Priya 200 cash kuduthaanga">Priya 200 cash
+                        kuduthaanga</button>
                 </div>
             </div>
 
             <form id="transcription-form" class="input-form" onsubmit="return false;">
                 <div class="input-controls-row">
-                    <!-- Enabled Mic Button for Voice Input -->
-                    <button
-                        id="mic-btn"
-                        class="mic-btn"
-                        type="button"
-                        aria-label="Voice input"
-                        data-i18n-aria="voiceInput"
-                        title="Voice input (Tap to speak)"
-                    >
+                    <!-- Disabled Mic Button with "coming soon" label -->
+                    <button id="mic-btn" class="mic-btn" type="button" disabled aria-label="Voice input (Coming soon)"
+                        title="Voice input coming soon">
                         <span class="mic-icon" aria-hidden="true">&#127908;</span>
+                        <span class="mic-tooltip" data-i18n="comingSoon">Coming soon</span>
                     </button>
 
                     <!-- Notebook Photo Upload Button & Hidden Input -->
-                    <input type="file" id="photo-file-input" accept="image/jpeg,image/png,image/webp" style="display: none;" aria-hidden="true">
-                    <button
-                        id="photo-upload-btn"
-                        class="mic-btn photo-btn"
-                        type="button"
-                        aria-label="Upload notebook photo"
-                        title="Scan notebook page photo"
-                    >
+                    <input type="file" id="photo-file-input" accept="image/jpeg,image/png,image/webp"
+                        style="display: none;" aria-hidden="true">
+                    <button id="photo-upload-btn" class="mic-btn photo-btn" type="button"
+                        aria-label="Upload notebook photo" title="Scan notebook page photo">
                         <span class="photo-icon" aria-hidden="true">&#128247;</span>
                     </button>
 
                     <!-- Text Input Box -->
                     <div class="text-input-wrapper">
-                        <input
-                            type="text"
-                            id="sentence-input"
-                            class="sentence-input"
+                        <input type="text" id="sentence-input" class="sentence-input"
                             data-i18n-placeholder="sentencePlaceholder"
                             placeholder="Type: 'Ravi 500 udhaar kuduthen'..."
-                            aria-label="Enter transaction in Tanglish or English"
-                            maxlength="500"
-                            autocomplete="off"
-                        >
+                            aria-label="Enter transaction in Tanglish or English" maxlength="500" autocomplete="off">
                     </div>
 
                     <!-- Send Button -->
-                    <button
-                        id="send-btn"
-                        class="send-btn"
-                        type="submit"
-                        aria-label="Process transaction"
-                    >
+                    <button id="send-btn" class="send-btn" type="submit" aria-label="Process transaction">
                         <span class="send-icon" aria-hidden="true">&#10148;</span>
                         <span class="send-label" data-i18n="send">Send</span>
                     </button>
@@ -408,21 +401,25 @@
         </footer>
 
         <!-- Screen 4/Reminder: Verifiable Payment Reminder Modal -->
-        <div id="reminder-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="reminder-modal-title">
+        <div id="reminder-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true"
+            aria-labelledby="reminder-modal-title">
             <div class="modal-card">
                 <div class="modal-header">
                     <div>
-                        <h3 id="reminder-modal-title" class="modal-title" data-i18n="reminderTitle">Payment Reminder</h3>
+                        <h3 id="reminder-modal-title" class="modal-title" data-i18n="reminderTitle">Payment Reminder
+                        </h3>
                         <p class="modal-subtitle" id="reminder-customer-subtitle">For Customer</p>
                     </div>
-                    <button id="close-reminder-modal-btn" class="modal-close-btn" type="button" aria-label="Close modal">&times;</button>
+                    <button id="close-reminder-modal-btn" class="modal-close-btn" type="button"
+                        aria-label="Close modal">&times;</button>
                 </div>
 
                 <div class="modal-body">
                     <!-- Config Options -->
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="reminder-lang-select" class="form-label" data-i18n="reminderLanguage">Language</label>
+                            <label for="reminder-lang-select" class="form-label"
+                                data-i18n="reminderLanguage">Language</label>
                             <select id="reminder-lang-select" class="form-select">
                                 <option value="ta">தமிழ் (Tamil Script)</option>
                                 <option value="tanglish">Tanglish (Tamil in English)</option>
@@ -456,54 +453,59 @@
 
                         <!-- Action Buttons -->
                         <div class="reminder-actions-row">
-                            <a
-                                id="reminder-whatsapp-link"
-                                class="btn btn-whatsapp"
-                                href="#"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style="display: none;"
-                            >
-                                <span class="wa-icon">&#128172;</span> <span data-i18n="openWhatsApp">Open in WhatsApp</span>
+                            <a id="reminder-whatsapp-link" class="btn btn-whatsapp" href="#" target="_blank"
+                                rel="noopener noreferrer" style="display: none;">
+                                <span class="wa-icon">&#128172;</span> <span data-i18n="openWhatsApp">Open in
+                                    WhatsApp</span>
                             </a>
                             <button id="reminder-copy-btn" class="btn btn-secondary" type="button">
-                                <span class="copy-icon">&#128203;</span> <span id="copy-btn-label" data-i18n="copyMessage">Copy Message</span>
+                                <span class="copy-icon">&#128203;</span> <span id="copy-btn-label"
+                                    data-i18n="copyMessage">Copy Message</span>
                             </button>
                         </div>
-                        <p class="reminder-notice" data-i18n="reminderPrivacyNotice">The app never sends anything itself. You review and send manually.</p>
+                        <p class="reminder-notice" data-i18n="reminderPrivacyNotice">The app never sends anything
+                            itself. You review and send manually.</p>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Technical Judge Reference Modal: How it works -->
-        <div id="how-it-works-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="how-it-works-title">
+        <div id="how-it-works-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true"
+            aria-labelledby="how-it-works-title">
             <div class="modal-card how-it-works-card">
                 <div class="modal-header">
                     <div>
                         <h3 id="how-it-works-title" class="modal-title">&#9881; How Kadai Khata Works</h3>
                         <p class="modal-subtitle">Technical Judge Reference &mdash; Live AI vs Code-Enforced Safety</p>
                     </div>
-                    <button id="close-how-it-works-btn" class="modal-close-btn" type="button" aria-label="Close modal">&times;</button>
+                    <button id="close-how-it-works-btn" class="modal-close-btn" type="button"
+                        aria-label="Close modal">&times;</button>
                 </div>
                 <div class="modal-body modal-scrollable">
                     <section class="modal-tech-section">
                         <h4 class="tech-section-title tech-title-ai">&#129302; Live Meta AI Features Used</h4>
                         <div class="tech-feature-item">
                             <strong>1. Single-Turn Tool Calling:</strong>
-                            <p>Translates colloquial Tanglish speech/text into typed <code>record_ledger_entry</code> or <code>ask_clarification</code> tool calls.</p>
+                            <p>Translates colloquial Tanglish speech/text into typed <code>record_ledger_entry</code> or
+                                <code>ask_clarification</code> tool calls.
+                            </p>
                         </div>
                         <div class="tech-feature-item">
                             <strong>2. Parallel Tool Calls:</strong>
-                            <p>Extracts multiple customer transactions simultaneously from compound sentences (e.g., credit given plus payment received in one utterance).</p>
+                            <p>Extracts multiple customer transactions simultaneously from compound sentences (e.g.,
+                                credit given plus payment received in one utterance).</p>
                         </div>
                         <div class="tech-feature-item">
                             <strong>3. Multimodal Vision:</strong>
-                            <p>Scans handwritten Tamil physical notebook pages directly into structured draft rows in-memory. Zero image bytes stored on disk or DB.</p>
+                            <p>Scans handwritten Tamil physical notebook pages directly into structured draft rows
+                                in-memory. Zero image bytes stored on disk or DB.</p>
                         </div>
                         <div class="tech-feature-item">
                             <strong>4. Autonomous Agent Loop:</strong>
-                            <p>Daily Collections Agent runs an autonomous multi-turn ReAct reasoning loop calling read-only ledger tools to review debt aging, payment habits, and propose polite collection actions.</p>
+                            <p>Daily Collections Agent runs an autonomous multi-turn ReAct reasoning loop calling
+                                read-only ledger tools to review debt aging, payment habits, and propose polite
+                                collection actions.</p>
                         </div>
                         <div class="tech-feature-item">
                             <strong>5. Audio Voice Transcription (Muse Voice Transcribe):</strong>
@@ -524,18 +526,24 @@
                     </section>
 
                     <section class="modal-tech-section">
-                        <h4 class="tech-section-title tech-title-code">&#128274; What is NOT AI (Strict Code Boundaries)</h4>
+                        <h4 class="tech-section-title tech-title-code">&#128274; What is NOT AI (Strict Code Boundaries)
+                        </h4>
                         <div class="tech-feature-item">
                             <strong>1. Balances &amp; Arithmetic:</strong>
-                            <p>Customer balances, aging buckets (0-30, 31-60, 60+), and running totals are computed 100% deterministically in Python/SQL. The LLM is never permitted to calculate balances.</p>
+                            <p>Customer balances, aging buckets (0-30, 31-60, 60+), and running totals are computed 100%
+                                deterministically in Python/SQL. The LLM is never permitted to calculate balances.</p>
                         </div>
                         <div class="tech-feature-item">
                             <strong>2. Balance Verifier:</strong>
-                            <p>All reminder messages and ask answers are strictly verified against ground-truth database balances before display. Any hallucinated numbers immediately trigger fallback to verified deterministic templates.</p>
+                            <p>All reminder messages and ask answers are strictly verified against ground-truth database
+                                balances before display. Any hallucinated numbers immediately trigger fallback to
+                                verified deterministic templates.</p>
                         </div>
                         <div class="tech-feature-item">
                             <strong>3. SHA-256 Cryptographic Hash Chain:</strong>
-                            <p>Every single agent execution step, tool input, tool output, and final plan is cryptographically linked with previous-step SHA-256 hashes, producing an immutable, tamper-evident audit trail replayable offline.</p>
+                            <p>Every single agent execution step, tool input, tool output, and final plan is
+                                cryptographically linked with previous-step SHA-256 hashes, producing an immutable,
+                                tamper-evident audit trail replayable offline.</p>
                         </div>
                         <div class="tech-feature-item">
                             <strong>4. Owner Transcript Review Screen:</strong>
@@ -553,4 +561,5 @@
     <!-- Application Script -->
     <script src="/static/js/app.js"></script>
 </body>
+
 </html>
