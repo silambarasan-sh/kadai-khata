@@ -26,12 +26,22 @@ if not DEBUG:
 else:
     SECRET_KEY = secret_key_env or "django-insecure-kadai-khata-hackathon-2026-indie-track-dev-key"
 
-# ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS from env
+# ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS from env and Render platform variables
 allowed_hosts_str = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG else "")
 ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split(",") if h.strip()]
+render_external_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if render_external_hostname and render_external_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_external_hostname)
 
 csrf_trusted_str = os.getenv("CSRF_TRUSTED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_trusted_str.split(",") if o.strip()]
+render_external_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+if render_external_url and render_external_url not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(render_external_url)
+if render_external_hostname:
+    origin_from_hostname = f"https://{render_external_hostname}"
+    if origin_from_hostname not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin_from_hostname)
 
 # Admin route disabled unless DJANGO_ENABLE_ADMIN=1
 DJANGO_ENABLE_ADMIN = os.getenv("DJANGO_ENABLE_ADMIN", "0").strip() in ("1", "true", "yes")
@@ -82,10 +92,16 @@ WSGI_APPLICATION = "kadai_khata.wsgi.application"
 
 # Database - SQLite path from env DATABASE_PATH
 db_path_env = os.getenv("DATABASE_PATH")
+if db_path_env:
+    db_file_path = Path(db_path_env)
+    db_file_path.parent.mkdir(parents=True, exist_ok=True)
+else:
+    db_file_path = BASE_DIR / "db.sqlite3"
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": Path(db_path_env) if db_path_env else (BASE_DIR / "db.sqlite3"),
+        "NAME": db_file_path,
     }
 }
 

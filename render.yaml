@@ -4,11 +4,11 @@ services:
     runtime: python
     region: oregon
     plan: free
-    buildCommand: "./render_build.sh"
-    startCommand: "./render_start.sh"
+    buildCommand: "bash render_build.sh"
+    startCommand: "bash render_start.sh"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.9
+        value: 3.14.8
       - key: DJANGO_DEBUG
         value: "False"
       - key: DJANGO_SECRET_KEY
