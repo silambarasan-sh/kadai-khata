@@ -166,6 +166,12 @@ class Command(BaseCommand):
             help="Comma-separated variant keys to run (e.g. 'f,g' or '' for all)",
         )
         parser.add_argument(
+            "--output-dir",
+            type=str,
+            default="",
+            help="Custom directory to write raw output JSON files",
+        )
+        parser.add_argument(
             "--skip-parse",
             action="store_true",
             help="Skip passing transcripts through parse_text",
@@ -183,10 +189,17 @@ class Command(BaseCommand):
         samples_dir = Path(options["samples_dir"])
         expected_path = samples_dir / "expected.txt"
         expected_drafts_path = samples_dir / "expected_drafts.json"
-        raw_output_dir = samples_dir / "_raw"
+        
+        mock_mode = options.get("mock", False)
+        mode_str = "mock" if mock_mode else "live"
+        custom_out = options.get("output_dir", "").strip()
+
+        if custom_out:
+            raw_output_dir = Path(custom_out)
+        else:
+            raw_output_dir = samples_dir / "_raw" / mode_str
         raw_output_dir.mkdir(parents=True, exist_ok=True)
 
-        mock_mode = options.get("mock", False)
         repeats = options.get("repeats", 2)
         skip_parse = options.get("skip_parse", False)
         variants_arg = options.get("variants", "").strip()
@@ -314,6 +327,7 @@ class Command(BaseCommand):
                         raw_call_filename = f"{label}_{var_key}_rep{rep}.json"
                         raw_call_path = raw_output_dir / raw_call_filename
                         raw_record = {
+                            "mode": mode_str,
                             "sample": label,
                             "variant": var_key,
                             "variant_name": var_name,
@@ -370,14 +384,23 @@ class Command(BaseCommand):
         # GENERATE CODE-GENERATED RESULTS TABLES DIRECTLY FROM THE SAVED JSON FILES ONLY
         # -----------------------------------------------------------------------------------------
         self.write_out("\n" + "=" * 145, style_func=self.style.MIGRATE_HEADING)
-        self.write_out(" TABLE 1: PER-SAMPLE RUN DETAILS (CODE-GENERATED STRICTLY FROM tests/voice_samples/_raw/*.json)", style_func=self.style.MIGRATE_HEADING)
+        self.write_out(" TABLE 1: PER-SAMPLE RUN DETAILS (LOADED STRICTLY FROM LIVE RAW JSON FILES)", style_func=self.style.MIGRATE_HEADING)
         self.write_out("=" * 145, style_func=self.style.MIGRATE_HEADING)
 
-        saved_files = sorted(raw_output_dir.glob("*.json"))
+        if custom_out:
+            table_source_dir = raw_output_dir
+            saved_files = sorted(table_source_dir.glob("*.json"))
+        else:
+            table_source_dir = samples_dir / "_raw" / "live"
+            table_source_dir.mkdir(parents=True, exist_ok=True)
+            saved_files = sorted(table_source_dir.glob("*.json"))
+
         loaded_records: List[Dict[str, Any]] = []
         for sf in saved_files:
             with open(sf, "r", encoding="utf-8") as rf:
-                loaded_records.append(json.load(rf))
+                rec = json.load(rf)
+                if custom_out or rec.get("mode") == "live":
+                    loaded_records.append(rec)
 
         # Sort by variant, sample, repeat
         loaded_records.sort(key=lambda r: (r.get("variant", ""), r.get("sample", ""), r.get("repeat", 0)))

@@ -268,13 +268,69 @@ def test_parse_text_with_save_false():
 
 
 @pytest.mark.django_db
-def test_voice_probe_command_mock_mode():
+def test_voice_probe_command_mock_mode(tmp_path):
+    # Setup isolated test directory in pytest tmp_path
+    tmp_samples = tmp_path / "voice_samples"
+    tmp_samples.mkdir(parents=True, exist_ok=True)
+
+    # Create expected.txt and expected_drafts.json
+    (tmp_samples / "expected.txt").write_text(
+        's1: "Ravi-ku aanju nooru rooba udhaar kuduthen"\n'
+        's2: "Mani irunooru thirumba kuduthaan, Selvi-ku moonu nooru udhaar"\n'
+        's3: "முருகன் நானூறு ரூபாய் கடன் வாங்கினார்"\n'
+        's4: "Bala aayiram rooba gpay pannitaanga"\n',
+        encoding="utf-8",
+    )
+    (tmp_samples / "expected_drafts.json").write_text(
+        json.dumps({
+            "s1": [{"customer": "Ravi", "kind": "credit_given", "amount": 500}],
+            "s2": [
+                {"customer": "Mani", "kind": "payment_received", "amount": 200},
+                {"customer": "Selvi", "kind": "credit_given", "amount": 300},
+            ],
+            "s3": [{"customer": "Murugan", "kind": "credit_given", "amount": 400}],
+            "s4": [{"customer": "Bala", "kind": "payment_received", "amount": 1000}],
+        }),
+        encoding="utf-8",
+    )
+
+    # Create dummy audio files
+    for lbl in ["s1", "s2", "s3", "s4"]:
+        dummy = _create_dummy_wav(duration_sec=1.0)
+        dest = tmp_samples / f"{lbl}.mp4"
+        import shutil
+        shutil.copy2(dummy, dest)
+        dummy.unlink(missing_ok=True)
+
+    tmp_out = tmp_path / "mock_output"
+    tmp_out.mkdir(parents=True, exist_ok=True)
+
     out = io.StringIO()
-    call_command("voice_probe", mock=True, stdout=out)
+    call_command(
+        "voice_probe",
+        mock=True,
+        samples_dir=str(tmp_samples),
+        output_dir=str(tmp_out),
+        variants="a",
+        repeats=1,
+        stdout=out,
+    )
     output = out.getvalue()
 
     assert "Kadai Khata - Muse Voice Transcribe" in output
     assert "TABLE 1: PER-SAMPLE RUN DETAILS" in output
     assert "PERFORMANCE SUMMARY" in output
     assert "Best Performing Variant:" in output
+
+    # Verify that mock files were written to tmp_out and carry mode="mock"
+    mock_files = list(tmp_out.glob("*.json"))
+    assert len(mock_files) > 0
+    with open(mock_files[0], "r", encoding="utf-8") as f:
+        data = json.load(f)
+        assert data.get("mode") == "mock"
+
+    # Verify that real tests/voice_samples was NOT touched
+    real_live_dir = Path("tests/voice_samples/_raw/live")
+    real_mock_dir = Path("tests/voice_samples/_raw/mock")
+    assert not real_mock_dir.exists() or len(list(real_mock_dir.glob("*.json"))) == 0
 

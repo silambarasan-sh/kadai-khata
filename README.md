@@ -429,87 +429,87 @@ For small kirana store owners handling rapid customer transactions, typing on mo
 - **Owner Review Safety Net**: Voice transcription does **not** directly execute or draft transactions in the database. Instead, the transcribed text is placed into the main input box with a clear helper note: *"Check the words, then press Send. Voice is transcribed by Meta Muse Voice Transcribe; audio is not stored."* The shopkeeper can edit any misheard words or amounts before pressing "Send" to initiate the normal parsing flow.
 - **Customer Keywords**: The transcription request automatically attaches up to 50 existing customer names from the local database as `keywords`, improving phonetic grounding for regional names (e.g. *Murugan*, *Selvam*, *Priya*, *Ravi*). No balances or phone numbers are ever leaked to the voice API.
 
-### 2. Empirical 5-Variant Feasibility Benchmark (`voice_probe`)
+### 2. Empirical 7-Variant Feasibility Benchmark (`voice_probe`)
 We conducted a live feasibility probe with 4 real mobile phone voice recordings ($n = 4$ clips from 1 single speaker):
 - `s1.mp4`: *"Ravi-ku aanju nooru rooba udhaar kuduthen"* (ffprobe: 5.18s, API: 5200ms; expected: Ravi credit_given 500)
 - `s2.mp4`: *"Mani irunooru thirumba kuduthaan, Selvi-ku moonu nooru udhaar"* (ffprobe: 8.68s, API: 8720ms; expected: Mani payment_received 200, Selvi credit_given 300)
 - `s3.mp4`: *"முருகன் நானூறு ரூபாய் கடன் வாங்கினார்"* (ffprobe: 4.80s, API: 4800ms; expected: Murugan credit_given 400)
 - `s4.mp4`: *"Bala aayiram rooba gpay pannitaanga"* (ffprobe: 3.90s, API: 3920ms; expected: Bala payment_received 1000)
 
-We evaluated 5 configuration variants across 2 independent repeats each (**40 total live Meta API calls**). Every record is saved as raw JSON under `tests/voice_samples/_raw/` and code-loaded:
+We evaluated 7 configuration variants across 2 independent repeats each (**56 total live Meta API calls**). Every record is saved as raw JSON under `tests/voice_samples/_raw/live/` and code-loaded:
 
-#### Table 1: Code-Generated Per-Sample Run Details (40 Live Runs from tests/voice_samples/_raw/)
+#### Table 1: Code-Generated Per-Sample Run Details (56 Live Runs from tests/voice_samples/_raw/live/)
 
 | Sample | Var | Rep | audioDurationMs (ffprobe) | Transcript | Expected Drafts | Got Drafts | Pass |
 |:---|:---|:---|:---|:---|:---|:---|:---|
-| s1 | (a) | R1 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூಬಾ ಉದಾರ ಕೊಡುತ್ತೇನೆ. ಕೊಡುತ್ತೇನೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s1 | (a) | R2 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூಪಾಯಿ ಉಧಾರ್ ಕೊಡುತ್ತೇನೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s2 | (a) | R1 | 8720ms (8.68s) | மணி இருநூறு திரும்பக் கொடுத்தான், செல்விக்கு செல்விக்கு மூனூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s2 | (a) | R2 | 8720ms (8.68s) | मणि இருநூறு திரும்பக் கொடுத்தான், செல்விக்கு செல்விக்கு மூனூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s3 | (a) | R1 | 4800ms (4.80s) | ಮೂರುಗನ್ ನಾನೂರು ರೂಪಾಯಿ ರೂಪಾಯಿ ಕടನ್ ವാങ്ങinar. | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s3 | (a) | R2 | 4800ms (4.80s) | Murugan 400 ರೂಪಾಯಿ ಕಷ್ಟನ್ ವಾಂಗಿನಾರ್. | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s4 | (a) | R1 | 3920ms (3.90s) | बहला आयरन रोबट ஜீப்பே பண்ணிட்டாங்க. | Bala payment_received 1000 | None | **FAIL** |
-| s4 | (a) | R2 | 3920ms (3.90s) | बहला आयरन रोबट ஜீபே பண்ணிட்டாங்க. | Bala payment_received 1000 | None | **FAIL** |
+| s1 | (a) | R1 | 5200ms (5.18s) | ரவிக்கு அஞ்சினூறு ரூಪಾಯಿ ಉದಾರ ಕೊಡುತ್ತೇನೆ. ಕೊಡುತ್ತೇನೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (a) | R2 | 5200ms (5.18s) | ரவிக்கு, அஞ்சு நூறு ரೂಪಾ ಉದಾರ್ ಕೊಡುತ್ತೇನೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (a) | R1 | 8720ms (8.68s) | மணி இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு மூன்னூறு உதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (a) | R2 | 8720ms (8.68s) | मणि இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு மூன்னூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (a) | R1 | 4800ms (4.80s) | ಮೂರುಗನ್ ನಾನೂರು ರೂಪಾಯಿ ರೂಪಾಯಿ ಕಡdan ವಾಂಗಿನಾರ್. | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (a) | R2 | 4800ms (4.80s) | ಮೂರುಗನ್ ನಾನೂರು ರೂಪಾಯಿ ರೂಪಾಯಿ ಕಡನ್ ವಾಂಗಿನಾರ್. | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (a) | R1 | 3920ms (3.90s) | பஹலா ஆயிரன் ரூபாய் ಜೀಪೆ ಪಣಿಟಾಗಾ. | Bala payment_received 1000 | Bahala payment_received 1000 | **FAIL** |
+| s4 | (a) | R2 | 3920ms (3.90s) | बहला आयरन रोबोट, जीपेப்பீபேப்பணிटांग. | Bala payment_received 1000 | None | **FAIL** |
 | s1 | (b) | R1 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s1 | (b) | R2 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s2 | (b) | R1 | 8720ms (8.68s) | மணி இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு செல்விக்கு மூன்னூறு உதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s1 | (b) | R2 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபா உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (b) | R1 | 8720ms (8.68s) | மணி இருநூறு, திரும்பக் கொடுத்தான், செல்விக்கு செல்விக்கு மூனு நூறு நூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200 | **FAIL** |
 | s2 | (b) | R2 | 8720ms (8.68s) | மணி இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு மூன்னூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s3 | (b) | R1 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (b) | R1 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
 | s3 | (b) | R2 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s4 | (b) | R1 | 3920ms (3.90s) | பழா ஆயிரம் ரூபாய் GP பண்ணிட்டாங்க. | Bala payment_received 1000 | Pazha payment_received 1000 | **FAIL** |
-| s4 | (b) | R2 | 3920ms (3.90s) | பழ ஆயிரம் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | None | **FAIL** |
-| s1 | (c) | R1 | 5200ms (5.18s) | Ravi ku anjinooru ரூபா உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s1 | (c) | R2 | 5200ms (5.18s) | Ravi కి Anjinoor రూపా ఉదార్ కొడుతెన్ | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s2 | (c) | R1 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selviக்கு மூன்னூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s2 | (c) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selvi க்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s3 | (c) | R1 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s3 | (c) | R2 | 4800ms (4.80s) | Murugan நானூறு 400 ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s4 | (c) | R1 | 3920ms (3.90s) | Bala, ayiram rupees GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
-| s4 | (c) | R2 | 3920ms (3.90s) | Bala, ayiram rupees GPA GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
-| s1 | (d) | R1 | 5200ms (5.18s) | Ravi కి అంజీనూరు రూపా ఉదార్ ಕೊಡುತ್ತಾರೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s1 | (d) | R2 | 5200ms (5.18s) | Ravi ku அஞ்சு நூறு ரூபா உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s2 | (d) | R1 | 8720ms (8.68s) | Mani, இருநூறு திரும்பக் கொடுத்தான். Selvi-க்கு மூண்ணூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s2 | (d) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selviக்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s3 | (d) | R1 | 4800ms (4.80s) | Murugan நானூறு நூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | None | **FAIL** |
+| s4 | (b) | R1 | 3920ms (3.90s) | பஹலா ஆயிரம் ரூபாய் ஜீப்பே பண்ணிட்டாங்க. | Bala payment_received 1000 | Bahala payment_received 1000 | **FAIL** |
+| s4 | (b) | R2 | 3920ms (3.90s) | பல ஆயிரம் ரூபாய் GPA GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | None | **FAIL** |
+| s1 | (c) | R1 | 5200ms (5.18s) | Ravi కి Anjinooru రూపా ఉదార్ ಕೊಡುತ್ತಾರೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (c) | R2 | 5200ms (5.18s) | Ravi ku அஞ்சு நூறு ரூபா உதார் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (c) | R1 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selvi-க்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (c) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான், Selviக்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (c) | R1 | 4800ms (4.80s) | Murugan, நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (c) | R2 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (c) | R1 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s4 | (c) | R2 | 3920ms (3.90s) | Bala, ayiram rupees GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s1 | (d) | R1 | 5200ms (5.18s) | Ravi ku அஞ்சிநூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (d) | R2 | 5200ms (5.18s) | Ravi ku anjinூறு ரூபாய் உதார் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (d) | R1 | 8720ms (8.68s) | Mani, இருநூறு திரும்ப கொடுத்தான் Selviக்கு மூணுநூறு உதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (d) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selvikku மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (d) | R1 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
 | s3 | (d) | R2 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s4 | (d) | R1 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் GPay பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
-| s4 | (d) | R2 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் ரூபாய் GPay பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
-| s1 | (e) | R1 | 5200ms (5.18s) | Ravi ku anji hundred ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s1 | (e) | R2 | 5200ms (5.18s) | Ravi కి అంచினూరు రూపా ఉదార్ కొడుతెన్. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s2 | (e) | R1 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selviக்கு மூணுந்நூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s2 | (e) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் Selviக்கு மூன்னூறு உதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s4 | (d) | R1 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s4 | (d) | R2 | 3920ms (3.90s) | Bala, ஆயிரம் ரூபாய் GPay பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s1 | (e) | R1 | 5200ms (5.18s) | Ravi కి అంజినూరు రూపా ఉదార్ కుడుతేன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (e) | R2 | 5200ms (5.18s) | Ravi కి అంజినూరు రూపా ఉదార్ కొడుతెన్. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (e) | R1 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான். Selviக்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (e) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்ப கொடுத்தான் Selvi க்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
 | s3 | (e) | R1 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
 | s3 | (e) | R2 | 4800ms (4.80s) | Murugan நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s4 | (e) | R1 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் ரூபாய் GP பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
-| s4 | (e) | R2 | 3920ms (3.90s) | Bala, ayiram rupees GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
-| s1 | (f) | R1 | 5200ms (5.18s) | Ravi Kumar five hundred ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s1 | (f) | R2 | 5200ms (5.18s) | Ravi ku 500 ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s2 | (f) | R1 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான். Selvikku மூன்னூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s2 | (f) | R2 | 8720ms (8.68s) | mani irunூறு திரும்பக் கொடுத்தான் Selvik்கு மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s3 | (f) | R1 | 4800ms (4.80s) | Murugan Naanooru rupees கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s3 | (f) | R2 | 4800ms (4.80s) | Murugan Naanooru rupees cadan வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s4 | (f) | R1 | 3920ms (3.90s) | பழா ஆயிரம் ரூபாயத் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Pazha payment_received 1000 | **FAIL** |
-| s4 | (f) | R2 | 3920ms (3.90s) | பஹாலா ஆயிரம் ரூபாய் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | பஹாலா payment_received 1000 | **FAIL** |
-| s1 | (g) | R1 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s1 | (g) | R2 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
-| s2 | (g) | R1 | 8720ms (8.68s) | मणि இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு மூன்னூறு உதார்ாதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
-| s2 | (g) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு மூணுநூறு உதார் | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s4 | (e) | R1 | 3920ms (3.90s) | Bala ஆயிரம் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s4 | (e) | R2 | 3920ms (3.90s) | Bala, ayiram rupees rupees GP பண்ணிட்டாங்க. | Bala payment_received 1000 | Bala payment_received 1000 | **PASS** |
+| s1 | (f) | R1 | 5200ms (5.18s) | Ravi ku anjinooru roopa udhar ಕೊಡುತ್ತೇನೆ. | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (f) | R2 | 5200ms (5.18s) | Ravi ku அஞ்சு நூறு ரூபா உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (f) | R1 | 8720ms (8.68s) | Mani irunூறு திரும்பக் கொடுத்தான் Selviக்கு ku மூணுநூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (f) | R2 | 8720ms (8.68s) | Mani irunூறு திரும்பக் கொடுத்தான் Selviக்கு மூன்னூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s3 | (f) | R1 | 4800ms (4.80s) | Murugan Naanooru రూపాయి కடன் వాంగినార్. | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s3 | (f) | R2 | 4800ms (4.80s) | Murugan Naanooru rupee கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
+| s4 | (f) | R1 | 3920ms (3.90s) | பஹாலா ஆயிரம் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bahala payment_received 1000 | **FAIL** |
+| s4 | (f) | R2 | 3920ms (3.90s) | Bahala ஆயிரம் ரூபாய் ரூபாய் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bahala payment_received 1000 | **FAIL** |
+| s1 | (g) | R1 | 5200ms (5.18s) | ரவிக்கு அஞ்சு நூறு ரூபா உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s1 | (g) | R2 | 5200ms (5.18s) | ரவிக்கு அஞ்சிநூறு ரூபாய் உதார் கொடுத்தேன். | Ravi credit_given 500 | Ravi Kumar credit_given 500 | **PASS** |
+| s2 | (g) | R1 | 8720ms (8.68s) | मणि இருநூறு திரும்பக் கொடுத்தான் செல்விக்கு செல்விக்கு மூனூறு உதாரண். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
+| s2 | (g) | R2 | 8720ms (8.68s) | Mani இருநூறு திரும்பக் கொடுத்தான், செல்விக்கு மூணூறு உதார். | Mani payment_received 200; Selvi credit_given 300 | Mani payment_received 200; Selvi credit_given 300 | **PASS** |
 | s3 | (g) | R1 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
 | s3 | (g) | R2 | 4800ms (4.80s) | முருகன் நானூறு ரூபாய் கடன் வாங்கினார். | Murugan credit_given 400 | Murugan P credit_given 400 | **PASS** |
-| s4 | (g) | R1 | 3920ms (3.90s) | பஹலா ஆயிரம் ரூபாயத் GPA பண்ணிட்டாங்க. | Bala payment_received 1000 | Bahala payment_received 1000 | **FAIL** |
-| s4 | (g) | R2 | 3920ms (3.90s) | பஹலா ஐயாயிரம் ரூபாய் GPay பண்ணிட்டாங்க. | Bala payment_received 1000 | பஹலா payment_received 5000 | **FAIL** |
+| s4 | (g) | R1 | 3920ms (3.90s) | பஹலா ஆயிரம் ரூபாய் GP பண்ணிட்டாங்க. | Bala payment_received 1000 | Bahala payment_received 1000 | **FAIL** |
+| s4 | (g) | R2 | 3920ms (3.90s) | பஹலா ஆயிரம் ரூபாயத் GP பண்ணிட்டாங்க. | Bala payment_received 1000 | Bahala payment_received 1000 | **FAIL** |
 
 #### Table 2: 7-Variant Performance Summary (8 Runs Each, n = 4 clips, 1 speaker, 2 repeats)
 
 | Variant | Configuration Description | Runs Passed | Pass Rate | Avg Latency | Script Distribution |
 |:---|:---|:---|:---|:---|:---|
-| **(a)** | No hints | 4 / 8 | 50.0% | 120 ms* | Tamil:2, Other:6 |
-| **(b)** | `languageBias: ["Tamil"]` | 4 / 8 | 50.0% | 120 ms* | Tamil:2, Other:6 |
-| **(c)** | `keywords (spoken names)` | 4 / 8 (8/8 initial) | 50.0% | 120 ms* | Tamil:2, Other:6 |
-| **(d)** | `languageBias: ["Tamil"]` + `keywords` | 4 / 8 (7/8 initial) | 50.0% | 120 ms* | Tamil:2, Other:6 |
-| **(e)** | `languageBias: ["Tamil","English"]` + `keywords (spoken names)` | 4 / 8 (8/8 initial) | 50.0% | 120 ms* | Tamil:2, Other:6 |
-| **(f)** | `languageBias: ["Tamil","English"]` + demo DB names (app-realistic) | **6 / 8** | **75.0%** | **3032 ms** | Mixed:8 |
-| **(g)** | `languageBias: ["Tamil","English"]` (no keywords, app-realistic) | **6 / 8** | **75.0%** | **3245 ms** | Tamil:5, Mixed:3 |
+| **(a)** | `No hints` | **6 / 8** | **75.0%** | **5159 ms** | Tamil:6, Mixed:0, Other:2 |
+| **(b)** | `languageBias: ["Tamil"]` | **5 / 8** | **62.5%** | **3440 ms** | Tamil:7, Mixed:1, Other:0 |
+| **(c)** | `keywords (spoken names)` | **8 / 8** | **100.0%** | **3238 ms** | Tamil:0, Mixed:7, Other:1 |
+| **(d)** | `languageBias: ["Tamil"] + keywords` | **8 / 8** | **100.0%** | **3176 ms** | Tamil:0, Mixed:8, Other:0 |
+| **(e)** | `languageBias: ["Tamil","English"] + keywords (spoken names)` | **8 / 8** | **100.0%** | **5131 ms** | Tamil:0, Mixed:7, Other:1 |
+| **(f)** | `languageBias: ["Tamil","English"] + demo DB names (app-realistic)` | **6 / 8** | **75.0%** | **3087 ms** | Tamil:0, Mixed:7, Other:1 |
+| **(g)** | `languageBias: ["Tamil","English"] (no keywords, app-realistic)` | **6 / 8** | **75.0%** | **3027 ms** | Tamil:5, Mixed:3, Other:0 |
 
 ### 3. Honest Disclosures & Key Findings
 
@@ -517,11 +517,20 @@ We evaluated 5 configuration variants across 2 independent repeats each (**40 to
    - Earlier probe variants **(c)**, **(d)**, and **(e)** sent keywords matching the spoken names (`["Ravi", "Mani", "Selvi", "Murugan", "Bala"]`). This overstates real-world accuracy for new customers because the app can only attach existing customer names from the local database.
    - Variants **(f)** and **(g)** represent the **app-realistic numbers**: variant **(f)** attaches the 8 full customer names from a freshly seeded demo database (`Ravi Kumar`, `Murugan P`, `Selvam S`, `Priya Sundaram`, etc., where `Mani`, `Selvi`, and `Bala` are unlisted), while variant **(g)** tests zero keywords.
    - In both (f) and (g), `s1`, `s2`, and `s3` passed both repeats, while `s4` (*Bala*) failed because *Bala* was absent from the database and got transcribed as *Pazha* (`பழா`) or *Bahala* (`பஹாலா`).
-2. **"Pass" Definition**: "Pass" means the downstream Tanglish parser (`parse_text`) produced the exact expected structured ledger draft(s) (customer, transaction kind, and amount) from the transcript—it does **not** indicate verbatim transcription accuracy.
-3. **Non-Tamil Script Switching**: Telugu and Kannada characters (e.g. `కి`, `రూపా`, `ಉದಾರ`) as well as Devanagari (`मणि`, `बहला`) appeared in transcripts even when a Tamil language hint was provided.
-4. **Evaluation Scope**: $n = 4$ audio clips recorded from one single speaker, evaluated across 2 independent repeats.
-5. **Human Safety Gate**: The shop owner **always reviews** and can edit the transcribed text in the input box before pressing Send. The AI never creates ledger entries directly from raw audio.
-6. **Default Selection ((f) vs (g))**: Both app-realistic variants (f) and (g) passed 6 of 8 runs (75.0%). Because there was **no clear difference** between (f) and (g), the default setting `VOICE_LANGUAGE_BIAS="Tamil,English"` was kept unchanged.
+2. **Comparison with Initial 5-Variant Baseline (`87b8b8d`)**:
+   - In commit `87b8b8d`, initial live numbers were: (a) 6/8 (3625 ms), (b) 6/8 (4214 ms), (c) 8/8 (3585 ms), (d) 7/8 (3586 ms), and (e) 8/8 (3485 ms).
+   - In this regenerated live verification run:
+     - Variant (a) passed 6/8 (75.0%, 5159 ms), matching earlier pass count.
+     - Variant (b) passed 5/8 (62.5%, 3440 ms) vs 6/8 earlier; the single difference was in `s2` Repeat 1 where the acoustic model produced a duplicate word (`மூனு நூறு நூறு உதார்`), which prevented extraction of Selvi's 300 draft.
+     - Variant (c) passed 8/8 (100.0%, 3238 ms), matching earlier 8/8 pass count.
+     - Variant (d) passed 8/8 (100.0%, 3176 ms) vs 7/8 earlier; both repeats on s3 passed cleanly this time.
+     - Variant (e) passed 8/8 (100.0%, 5131 ms), matching earlier 8/8 pass count.
+     - App-realistic variants (f) and (g) both passed 6/8 (75.0%, 3087 ms and 3027 ms).
+3. **"Pass" Definition**: "Pass" means the downstream Tanglish parser (`parse_text`) produced the exact expected structured ledger draft(s) (customer, transaction kind, and amount) from the transcript—it does **not** indicate verbatim transcription accuracy.
+4. **Non-Tamil Script Switching**: Telugu and Kannada characters (e.g. `కి`, `రూపా`, `ಉದಾರ`) as well as Devanagari (`मणि`, `बहला`) appeared in transcripts even when a Tamil language hint was provided.
+5. **Evaluation Scope**: $n = 4$ audio clips recorded from one single speaker, evaluated across 2 independent repeats.
+6. **Human Safety Gate**: The shop owner **always reviews** and can edit the transcribed text in the input box before pressing Send. The AI never creates ledger entries directly from raw audio.
+7. **Default Selection ((f) vs (g))**: Both app-realistic variants (f) and (g) passed 6 of 8 runs (75.0%). Because there was **no clear difference** between (f) and (g), the default setting `VOICE_LANGUAGE_BIAS="Tamil,English"` was kept unchanged.
 
 ---
 
