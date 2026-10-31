@@ -118,3 +118,4 @@ def test_runtime_deployment_dependencies_declared():
     critical_runtime_packages = ["whitenoise", "gunicorn", "django", "requests"]
     for pkg in critical_runtime_packages:
         assert pkg in declared_packages, f"Critical runtime/deployment package '{pkg}' missing from requirements.txt"
+

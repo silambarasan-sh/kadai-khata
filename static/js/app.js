@@ -30,9 +30,19 @@
             transactionTimeline: "Transaction Timeline & Audit",
             noEntriesYet: "No transactions yet",
             noEntriesHint: "Add udhaar or varavu below to start tracking.",
-            comingSoon: "Coming soon",
             sentencePlaceholder: "Type: 'Ravi 500 udhaar kuduthen'...",
             send: "Send",
+            customerName: "Customer Name",
+            transactionKind: "Transaction Kind",
+            amount: "Amount (₹)",
+            note: "Note / Items",
+            suggestedCustomer: "Suggested Customer (Click to apply match):",
+            quickGuideTitle: "Quick Guide",
+            step1: "Type or speak a sentence",
+            step2: "Check the draft",
+            step3: "Confirm",
+            demoBannerText: "Public demo with fictional data. Do not enter real customer details. Data may be reset.",
+            voiceNeedsHttps: "Voice needs HTTPS and microphone permission",
             reminderTitle: "Payment Reminder",
             reminderLanguage: "Language",
             reminderTone: "Tone",
@@ -113,7 +123,8 @@
             voiceTimeout: "Voice transcription timed out. Please check network connection and try again.",
             voiceRateLimit: "Hourly voice limit reached (10 per hour). Please try typing directly or wait a while.",
             voiceBudgetReached: "Demo budget reached - voice transcription is temporarily paused to conserve demo credits.",
-            voiceCancelled: "Voice recording cancelled."
+            voiceCancelled: "Voice recording cancelled.",
+            voiceTooShort: "Recording was too short or empty. Please speak your entry and try again."
         },
         ta: {
             appTitle: "கடை கணக்கு",
@@ -136,9 +147,19 @@
             transactionTimeline: "பரிவர்த்தனை வரலாறு & தணிக்கை",
             noEntriesYet: "பரிவர்த்தனைகள் எதுவும் இல்லை",
             noEntriesHint: "கீழே உள்ளீட்டை சேர்த்து கணக்கைத் தொடங்குங்கள்.",
-            comingSoon: "விரைவில்",
             sentencePlaceholder: "எழுதுக: 'ரவி 500 உதார் குடுத்தேன்'...",
             send: "பதிவு செய்",
+            customerName: "வாடிக்கையாளர் பெயர்",
+            transactionKind: "பரிவர்த்தனை வகை",
+            amount: "தொகை (₹)",
+            note: "குறிப்பு / பொருட்கள்",
+            suggestedCustomer: "பரிந்துரைக்கப்பட்ட வாடிக்கையாளர் (பொருந்த கிளிக் செய்யவும்):",
+            quickGuideTitle: "விரைவு வழிகாட்டி",
+            step1: "வாக்கியத்தை தட்டச்சு செய்யவும் அல்லது பேசவும்",
+            step2: "வரைவை சரிபார்க்கவும்",
+            step3: "உறுதி செய்யவும்",
+            demoBannerText: "டெமோ சூழல் · கற்பனையான சோதனை தரவு மட்டுமே",
+            voiceNeedsHttps: "குரல் உள்ளீட்டிற்கு HTTPS மற்றும் மைக்ரோஃபோன் அனுமதி தேவை",
             reminderTitle: "கடன் நினைவூட்டல்",
             reminderLanguage: "மொழி",
             reminderTone: "தொனி",
@@ -219,7 +240,8 @@
             voiceTimeout: "குரல் மாற்றம் காலாவதியானது. இணைய இணைப்பை சரிபார்த்து மீண்டும் முயற்சிக்கவும்.",
             voiceRateLimit: "குரல் வரம்பு முடிந்தது (ஒரு மணி நேரத்திற்கு 10). நேரடியாக தட்டச்சு செய்யவும் அல்லது சிறிது நேரம் காத்திருக்கவும்.",
             voiceBudgetReached: "டெமோ பட்ஜெட் முடிந்தது - குரல் பதிவு தற்காலிகமாக நிறுத்தப்பட்டுள்ளது.",
-            voiceCancelled: "குரல் பதிவு ரத்து செய்யப்பட்டது."
+            voiceCancelled: "குரல் பதிவு ரத்து செய்யப்பட்டது.",
+            voiceTooShort: "குரல் பதிவு மிகவும் குறைவாக அல்லது காலியாக உள்ளது. பேசி மீண்டும் முயற்சிக்கவும்."
         }
     };
 
@@ -338,7 +360,15 @@
         voiceNoteBanner: document.getElementById("voice-note-banner"),
         closeVoiceNoteBtn: document.getElementById("close-voice-note-btn"),
         // Engine Selector
-        engineSelect: document.getElementById("engine-select")
+        engineSelect: document.getElementById("engine-select"),
+        enginePillBtn: document.getElementById("engine-pill-btn"),
+        enginePillLabel: document.getElementById("engine-pill-label"),
+        engineMenu: document.getElementById("engine-menu"),
+        // Demo & First-Visit Banners
+        demoBanner: document.getElementById("demo-mode-banner"),
+        dismissDemoBannerBtn: document.getElementById("dismiss-demo-banner-btn"),
+        firstVisitHint: document.getElementById("first-visit-hint"),
+        dismissFirstVisitBtn: document.getElementById("dismiss-first-visit-btn")
     };
 
     function getSelectedEngine() {
@@ -349,17 +379,68 @@
     }
 
     function initEngineSelector() {
-        if (!elements.engineSelect) return;
         const saved = localStorage.getItem("kadai_khata_engine") || "meta";
-        if (saved === "partner" || saved === "meta") {
-            elements.engineSelect.value = saved;
-        } else {
-            elements.engineSelect.value = "meta";
+        const val = (saved === "partner" || saved === "meta") ? saved : "meta";
+
+        if (elements.engineSelect) {
+            elements.engineSelect.value = val;
         }
-        elements.engineSelect.addEventListener("change", () => {
-            const val = elements.engineSelect.value;
-            localStorage.setItem("kadai_khata_engine", val);
-        });
+        if (elements.enginePillLabel) {
+            elements.enginePillLabel.textContent = (val === "partner" ? "Spark Open" : "Spark 1.3");
+        }
+        if (elements.engineMenu) {
+            elements.engineMenu.querySelectorAll(".engine-menu-item").forEach(item => {
+                if (item.getAttribute("data-value") === val) {
+                    item.classList.add("active");
+                } else {
+                    item.classList.remove("active");
+                }
+            });
+        }
+
+        if (elements.enginePillBtn && elements.engineMenu) {
+            elements.enginePillBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const isOpen = elements.engineMenu.style.display === "flex";
+                elements.engineMenu.style.display = isOpen ? "none" : "flex";
+                elements.enginePillBtn.setAttribute("aria-expanded", String(!isOpen));
+            });
+
+            document.addEventListener("click", (e) => {
+                if (!elements.enginePillBtn.contains(e.target) && !elements.engineMenu.contains(e.target)) {
+                    elements.engineMenu.style.display = "none";
+                    elements.enginePillBtn.setAttribute("aria-expanded", "false");
+                }
+            });
+
+            elements.engineMenu.querySelectorAll(".engine-menu-item").forEach(item => {
+                item.addEventListener("click", () => {
+                    const chosen = item.getAttribute("data-value");
+                    localStorage.setItem("kadai_khata_engine", chosen);
+                    if (elements.engineSelect) {
+                        elements.engineSelect.value = chosen;
+                        elements.engineSelect.dispatchEvent(new Event("change"));
+                    }
+                    if (elements.enginePillLabel) {
+                        elements.enginePillLabel.textContent = (chosen === "partner" ? "Spark Open" : "Spark 1.3");
+                    }
+                    elements.engineMenu.querySelectorAll(".engine-menu-item").forEach(i => i.classList.remove("active"));
+                    item.classList.add("active");
+                    elements.engineMenu.style.display = "none";
+                    elements.enginePillBtn.setAttribute("aria-expanded", "false");
+                });
+            });
+        }
+
+        if (elements.engineSelect) {
+            elements.engineSelect.addEventListener("change", () => {
+                const updatedVal = elements.engineSelect.value;
+                localStorage.setItem("kadai_khata_engine", updatedVal);
+                if (elements.enginePillLabel) {
+                    elements.enginePillLabel.textContent = (updatedVal === "partner" ? "Spark Open" : "Spark 1.3");
+                }
+            });
+        }
     }
 
     let currentPhotoTotalCheck = null;
@@ -399,6 +480,10 @@
         if (allCustomers.length > 0) {
             elements.customerCountBadge.textContent = t("customersCount", { n: allCustomers.length });
         }
+        if (elements.micBtn && elements.micBtn.disabled) {
+            elements.micBtn.title = t("voiceNeedsHttps");
+            elements.micBtn.setAttribute("aria-label", t("voiceNeedsHttps"));
+        }
     }
 
     function showToast(message, type = "info") {
@@ -431,6 +516,37 @@
 
     // --- API Calls ---
     async function loadCustomers() {
+        if (allCustomers.length === 0 && elements.customerListContainer) {
+            elements.customerListContainer.innerHTML = `
+                <div class="customer-card skeleton-card">
+                    <div class="customer-info">
+                        <div class="skeleton-line skeleton-title"></div>
+                        <div class="skeleton-line skeleton-sub"></div>
+                    </div>
+                    <div class="customer-balance-block">
+                        <div class="skeleton-line skeleton-amount"></div>
+                    </div>
+                </div>
+                <div class="customer-card skeleton-card">
+                    <div class="customer-info">
+                        <div class="skeleton-line skeleton-title" style="width: 60%;"></div>
+                        <div class="skeleton-line skeleton-sub" style="width: 40%;"></div>
+                    </div>
+                    <div class="customer-balance-block">
+                        <div class="skeleton-line skeleton-amount"></div>
+                    </div>
+                </div>
+                <div class="customer-card skeleton-card">
+                    <div class="customer-info">
+                        <div class="skeleton-line skeleton-title" style="width: 75%;"></div>
+                        <div class="skeleton-line skeleton-sub" style="width: 50%;"></div>
+                    </div>
+                    <div class="customer-balance-block">
+                        <div class="skeleton-line skeleton-amount"></div>
+                    </div>
+                </div>
+            `;
+        }
         try {
             const resp = await fetch("/api/customers/");
             if (!resp.ok) throw new Error("Failed to load customers");
@@ -978,7 +1094,7 @@
 
                 const pTitle = document.createElement("div");
                 pTitle.className = "candidate-picker-title";
-                pTitle.textContent = "Suggested Customer (Click to apply match):";
+                pTitle.textContent = t("suggestedCustomer") || "Suggested Customer (Click to apply match):";
                 pickerBox.appendChild(pTitle);
 
                 const optsRow = document.createElement("div");
@@ -1023,10 +1139,17 @@
             custGroup.className = "draft-form-group";
             const custLabel = document.createElement("label");
             custLabel.className = "draft-label";
-            custLabel.textContent = "Customer Name";
+            custLabel.textContent = t("customerName") || "Customer Name";
             const custInput = document.createElement("input");
             custInput.type = "text";
             custInput.className = "draft-input";
+            custInput.value = draft.customer_name || "";
+            custInput.placeholder = t("customerName") || "Customer Name";
+            custInput.setAttribute("aria-label", t("customerName") || "Customer Name");
+            custInput.addEventListener("input", (e) => {
+                draft.customer_name = e.target.value;
+                updateConfirmAllState();
+            });
             custGroup.appendChild(custLabel);
             custGroup.appendChild(custInput);
 
@@ -1062,7 +1185,7 @@
             kindGroup.className = "draft-form-group";
             const kindLabel = document.createElement("label");
             kindLabel.className = "draft-label";
-            kindLabel.textContent = "Transaction Kind";
+            kindLabel.textContent = t("transactionKind") || "Transaction Kind";
 
             const toggleGroup = document.createElement("div");
             toggleGroup.className = "kind-toggle-group";
@@ -1102,12 +1225,14 @@
             amtGroup.className = "draft-form-group";
             const amtLabel = document.createElement("label");
             amtLabel.className = "draft-label";
-            amtLabel.textContent = "Amount (₹)";
+            amtLabel.textContent = t("amount") || "Amount (₹)";
             const amtInput = document.createElement("input");
             amtInput.type = "number";
             amtInput.step = "0.01";
             amtInput.className = "draft-input";
             amtInput.value = draft.amount;
+            amtInput.placeholder = "0.00";
+            amtInput.setAttribute("aria-label", t("amount") || "Amount (₹)");
             amtGroup.appendChild(amtLabel);
             amtGroup.appendChild(amtInput);
             card.appendChild(amtGroup);
@@ -1117,12 +1242,16 @@
             noteGroup.className = "draft-form-group";
             const noteLabel = document.createElement("label");
             noteLabel.className = "draft-label";
-            noteLabel.textContent = "Note / Items";
+            noteLabel.textContent = t("note") || "Note / Items";
             const noteInput = document.createElement("input");
             noteInput.type = "text";
             noteInput.className = "draft-input";
             noteInput.value = draft.note || "";
+            noteInput.placeholder = t("note") || "Note / Items";
+            noteInput.setAttribute("aria-label", t("note") || "Note / Items");
             noteGroup.appendChild(noteLabel);
+            noteGroup.appendChild(noteInput);
+            card.appendChild(noteGroup);
             noteGroup.appendChild(noteInput);
             card.appendChild(noteGroup);
 
@@ -1724,6 +1853,10 @@
             for (const chunk of this.recordedSamples) {
                 totalLength += chunk.length;
             }
+            if (totalLength === 0) {
+                return null;
+            }
+
             const mergedSamples = new Float32Array(totalLength);
             let offset = 0;
             for (const chunk of this.recordedSamples) {
@@ -1732,6 +1865,9 @@
             }
 
             const resampled = this.downsample(mergedSamples, ctxRate, this.targetSampleRate);
+            if (!resampled || resampled.length === 0) {
+                return null;
+            }
             return this.encodeWAV(resampled, this.targetSampleRate);
         }
 
@@ -1817,7 +1953,8 @@
 
     async function startVoiceRecording() {
         if (isRecordingVoice || isParsing) return;
-        audioRecorder = new AudioRecorder();
+        const RecorderClass = (typeof window !== "undefined" && window.__E2E_AUDIO_RECORDER__) ? window.__E2E_AUDIO_RECORDER__ : AudioRecorder;
+        audioRecorder = new RecorderClass();
         try {
             await audioRecorder.start();
         } catch (err) {
@@ -1885,10 +2022,16 @@
 
         let wavBlob = null;
         try {
-            wavBlob = audioRecorder.stop();
+            wavBlob = audioRecorder ? audioRecorder.stop() : null;
         } catch (e) {
             resetVoiceUI();
             showToast("Failed to process recorded audio.", "error");
+            return;
+        }
+
+        if (!wavBlob || wavBlob.size <= 44) {
+            resetVoiceUI();
+            showToast(t("voiceTooShort"), "warning");
             return;
         }
 
@@ -1899,6 +2042,9 @@
         }
         if (elements.voiceCancelBtn) {
             elements.voiceCancelBtn.style.display = "none";
+        }
+        if (elements.inputStatusBar) {
+            elements.inputStatusBar.style.display = "flex";
         }
 
         voiceTranscribeSeconds = 0;
@@ -2124,8 +2270,41 @@
             });
         }
 
-        // Voice Input Listeners
+        // Demo Mode Banner Dismiss
+        if (elements.demoBanner) {
+            if (localStorage.getItem("kadai_khata_demo_banner_dismissed") === "1") {
+                elements.demoBanner.style.display = "none";
+            }
+            if (elements.dismissDemoBannerBtn) {
+                elements.dismissDemoBannerBtn.addEventListener("click", () => {
+                    elements.demoBanner.style.display = "none";
+                    localStorage.setItem("kadai_khata_demo_banner_dismissed", "1");
+                });
+            }
+        }
+
+        // First-Visit Hint Dismiss
+        if (elements.firstVisitHint) {
+            if (localStorage.getItem("kadai_khata_first_visit_dismissed") === "1") {
+                elements.firstVisitHint.style.display = "none";
+            }
+            if (elements.dismissFirstVisitBtn) {
+                elements.dismissFirstVisitBtn.addEventListener("click", () => {
+                    elements.firstVisitHint.style.display = "none";
+                    localStorage.setItem("kadai_khata_first_visit_dismissed", "1");
+                });
+            }
+        }
+
+        // Voice Input Listeners & Capability Check
         if (elements.micBtn) {
+            const hasMedia = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            if (!hasMedia) {
+                elements.micBtn.disabled = true;
+                elements.micBtn.title = t("voiceNeedsHttps");
+                elements.micBtn.setAttribute("aria-label", t("voiceNeedsHttps"));
+            }
+
             elements.micBtn.addEventListener("click", () => {
                 if (isRecordingVoice) {
                     stopVoiceRecordingAndUpload();

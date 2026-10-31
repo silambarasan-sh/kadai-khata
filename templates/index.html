@@ -7,6 +7,26 @@
     <title>Kadai Khata - Tanglish Udhaar Ledger</title>
     <meta name="description"
         content="Kadai Khata - Mobile Tanglish Udhaar & Credit Ledger with Meta AI verification for neighborhood shop owners.">
+    <meta name="theme-color" content="#1e3a8a">
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%228%22%20fill%3D%22%231e3a8a%22%2F%3E%3Ctext%20x%3D%2216%22%20y%3D%2222%22%20font-size%3D%2218%22%20text-anchor%3D%22middle%22%20fill%3D%22%23ffffff%22%20font-family%3D%22system-ui%2C%20sans-serif%22%20font-weight%3D%22bold%22%3E%E2%82%B9%3C%2Ftext%3E%3C%2Fsvg%3E">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ APP_BASE_URL }}/">
+    <meta property="og:title" content="Kadai Khata - Tanglish Udhaar Ledger">
+    <meta property="og:description"
+        content="Mobile Tanglish Udhaar & Credit Ledger with Meta AI verification for neighborhood shop owners.">
+    <meta property="og:image" content="{{ APP_BASE_URL }}/static/home.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ APP_BASE_URL }}/">
+    <meta name="twitter:title" content="Kadai Khata - Tanglish Udhaar Ledger">
+    <meta name="twitter:description"
+        content="Mobile Tanglish Udhaar & Credit Ledger with Meta AI verification for neighborhood shop owners.">
+    <meta name="twitter:image" content="{{ APP_BASE_URL }}/static/home.png">
+
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
@@ -20,16 +40,32 @@
                     <h1 id="app-title" class="brand-title" data-i18n="appTitle">Kadai Khata</h1>
                 </div>
                 <div class="header-actions">
-                    <div class="engine-selector-container">
-                        <label for="engine-select" class="engine-label" title="AI Inference Engine">Engine:</label>
-                        <select id="engine-select" class="engine-select" aria-label="Inference Engine">
-                            <option value="meta">Meta Model API · Muse Spark 1.3</option>
+                    <div class="engine-menu-container">
+                        <button id="engine-pill-btn" class="engine-pill-btn" type="button" aria-haspopup="true"
+                            aria-expanded="false" title="Inference Engine">
+                            <span class="engine-pill-dot" aria-hidden="true">&#9679;</span>
+                            <span id="engine-pill-label">Spark 1.3</span>
+                            <span class="engine-pill-arrow" aria-hidden="true">&#9662;</span>
+                        </button>
+                        <div id="engine-menu" class="engine-menu" role="menu" aria-label="Select Engine" style="display: none;">
+                            <button class="engine-menu-item active" type="button" role="menuitem" data-value="meta">
+                                <span class="engine-item-title">Meta Model API</span>
+                                <span class="engine-item-sub">Muse Spark 1.3</span>
+                            </button>
+                            <button class="engine-menu-item" type="button" role="menuitem" data-value="partner">
+                                <span class="engine-item-title">Baseten</span>
+                                <span class="engine-item-sub">Muse Spark Open</span>
+                            </button>
+                        </div>
+                        <select id="engine-select" class="engine-select" aria-label="Inference Engine" style="display: none;">
+                            <option value="meta" selected>Meta Model API · Muse Spark 1.3</option>
                             <option value="partner">Baseten · Muse Spark Open</option>
                         </select>
                     </div>
-                    <button id="how-it-works-btn" class="how-it-works-btn" type="button" aria-haspopup="dialog"
-                        aria-expanded="false" title="View technical architecture">
-                        <span aria-hidden="true">&#9432;</span> <span data-i18n="howItWorks">How it works</span>
+                    <button id="how-it-works-btn" class="icon-btn how-it-works-btn" type="button" aria-haspopup="dialog"
+                        aria-expanded="false" title="View technical architecture" aria-label="How it works">
+                        <span aria-hidden="true">&#9432;</span>
+                        <span class="sr-only" data-i18n="howItWorks">How it works</span>
                     </button>
                     <button id="lang-toggle-btn" class="lang-toggle-btn" type="button" aria-label="Toggle Language">
                         <span id="lang-current-label">தமிழ்</span>
@@ -50,8 +86,11 @@
             {% if DEMO_MODE %}
             <!-- Demo Warning Banner -->
             <div id="demo-mode-banner" class="demo-mode-banner" role="status" aria-label="Demo environment announcement">
-                <span class="demo-banner-icon" aria-hidden="true">&#9888;</span>
-                <span class="demo-banner-text">Public demo with fictional data. Do not enter real customer details. Data may be reset.</span>
+                <div class="demo-banner-content">
+                    <span class="demo-banner-icon" aria-hidden="true">&#9888;</span>
+                    <span class="demo-banner-text" data-i18n="demoBannerText">Public demo with fictional data. Do not enter real customer details. Data may be reset.</span>
+                </div>
+                <button id="dismiss-demo-banner-btn" class="demo-banner-dismiss-btn" type="button" aria-label="Dismiss demo banner">&times;</button>
             </div>
             {% endif %}
         </header>
@@ -60,6 +99,18 @@
         <main id="main-content" class="main-content">
             <!-- Screen 1: Home View -->
             <section id="home-view" class="view-section active" aria-labelledby="total-outstanding-label">
+                <!-- First-visit Quick Guide Hint -->
+                <div id="first-visit-hint" class="card first-visit-hint" role="region" aria-label="Quick Guide">
+                    <div class="first-visit-header">
+                        <span class="first-visit-title" data-i18n="quickGuideTitle">&#9889; Quick Guide</span>
+                        <button id="dismiss-first-visit-btn" class="first-visit-dismiss-btn" type="button" aria-label="Dismiss quick guide">&times;</button>
+                    </div>
+                    <div class="first-visit-steps">
+                        <div class="first-visit-step"><span class="step-num">1</span> <span data-i18n="step1">Type or speak a sentence</span></div>
+                        <div class="first-visit-step"><span class="step-num">2</span> <span data-i18n="step2">Check the draft</span></div>
+                        <div class="first-visit-step"><span class="step-num">3</span> <span data-i18n="step3">Confirm</span></div>
+                    </div>
+                </div>
                 <!-- Big Total Outstanding Card -->
                 <div class="card summary-card">
                     <div class="summary-meta">
@@ -341,38 +392,43 @@
                 <span id="input-status-text" data-i18n="parsingSentence">Understanding Tanglish transaction...</span>
                 <button id="photo-cancel-btn" class="status-cancel-btn" type="button" style="display: none;"
                     aria-label="Cancel reading photo">Cancel</button>
+                <button id="voice-cancel-btn" class="status-cancel-btn" type="button" style="display: none;"
+                    aria-label="Cancel recording">Cancel</button>
             </div>
 
-            <!-- "Try these" chips & sample notebook button for judge evaluation -->
-            <div class="sample-chips-row">
-                <div class="chips-label-group">
-                    <span class="chips-title" data-i18n="tryThese">Try these:</span>
-                    <button id="try-sample-notebook-btn" class="chip-sample-notebook" type="button"
-                        title="Upload tests/vision_samples/newpage3.jpeg">
-                        <span aria-hidden="true">&#128220;</span> <span data-i18n="trySampleNotebook">Try a sample
-                            notebook page</span>
-                    </button>
+            <!-- Voice Transcript Review Notice Banner -->
+            <div id="voice-note-banner" class="voice-note-banner" style="display: none;" role="status">
+                <div class="voice-note-content">
+                    <span class="voice-note-icon" aria-hidden="true">&#9989;</span>
+                    <div class="voice-note-body">
+                        <strong data-i18n="checkWordsThenSend">Check the words, then press Send</strong>
+                        <span class="voice-note-disclaimer" data-i18n="voiceDisclaimer">Voice is transcribed by Meta Muse Voice Transcribe; audio is not stored.</span>
+                    </div>
                 </div>
-                <div class="chips-list">
-                    <button type="button" class="sample-chip" data-sentence="Ravi 450 udhaar paal packet bread">Ravi 450
-                        udhaar paal packet bread</button>
-                    <button type="button" class="sample-chip" data-sentence="Murugan phonpe-la 300 kuduthaar">Murugan
-                        phonpe-la 300 kuduthaar</button>
-                    <button type="button" class="sample-chip"
-                        data-sentence="Selvam 1200 rooba arisi moottai udhaar book pannunga">Selvam 1200 rooba arisi
-                        moottai udhaar book pannunga</button>
-                    <button type="button" class="sample-chip" data-sentence="Priya 200 cash kuduthaanga">Priya 200 cash
-                        kuduthaanga</button>
+                <button id="close-voice-note-btn" class="voice-note-close" type="button" aria-label="Close voice note">&times;</button>
+            </div>
+
+            <!-- Horizontally scrollable "Try these" chips with edge fade, Sample notebook page first -->
+            <div class="sample-chips-row">
+                <div class="chips-edge-container">
+                    <div class="chips-list" id="sample-chips-track">
+                        <button id="try-sample-notebook-btn" class="sample-chip chip-sample-notebook" type="button"
+                            title="Upload tests/vision_samples/newpage3.jpeg">
+                            <span aria-hidden="true">&#128220;</span> <span data-i18n="trySampleNotebook">Sample notebook page</span>
+                        </button>
+                        <button type="button" class="sample-chip" data-sentence="Ravi 450 udhaar paal packet bread">Ravi 450 udhaar paal packet bread</button>
+                        <button type="button" class="sample-chip" data-sentence="Murugan phonpe-la 300 kuduthaar">Murugan phonpe-la 300 kuduthaar</button>
+                        <button type="button" class="sample-chip" data-sentence="Selvam 1200 rooba arisi moottai udhaar book pannunga">Selvam 1200 rooba arisi moottai udhaar book pannunga</button>
+                        <button type="button" class="sample-chip" data-sentence="Priya 200 cash kuduthaanga">Priya 200 cash kuduthaanga</button>
+                    </div>
                 </div>
             </div>
 
             <form id="transcription-form" class="input-form" onsubmit="return false;">
                 <div class="input-controls-row">
-                    <!-- Disabled Mic Button with "coming soon" label -->
-                    <button id="mic-btn" class="mic-btn" type="button" disabled aria-label="Voice input (Coming soon)"
-                        title="Voice input coming soon">
+                    <!-- Voice Input Mic Button -->
+                    <button id="mic-btn" class="mic-btn" type="button" aria-label="Voice input" title="Voice input">
                         <span class="mic-icon" aria-hidden="true">&#127908;</span>
-                        <span class="mic-tooltip" data-i18n="comingSoon">Coming soon</span>
                     </button>
 
                     <!-- Notebook Photo Upload Button & Hidden Input -->

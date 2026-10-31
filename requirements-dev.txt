@@ -1,0 +1,5 @@
+# Development and E2E browser testing dependencies only.
+# Render and production deploys must NOT install this file.
+playwright>=1.40.0
+pytest-playwright>=0.5.0
+
