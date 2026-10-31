@@ -17,7 +17,7 @@ from django.conf import settings
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import Customer, DraftEntry
@@ -75,6 +75,15 @@ def _serialize_draft(draft: DraftEntry) -> dict:
     }
 
 
+def csrf_failure(request: HttpRequest, reason: str = "") -> JsonResponse:
+    """Return JSON response on CSRF validation failures instead of generic HTML."""
+    return JsonResponse(
+        {"status": "error", "error": f"CSRF verification failed: {reason or 'Invalid or missing CSRF token'}"},
+        status=403,
+    )
+
+
+@ensure_csrf_cookie
 def index(request: HttpRequest):
     """Serve the single-page application UI."""
     if request.headers.get("Accept") == "application/json":
@@ -82,7 +91,6 @@ def index(request: HttpRequest):
     return render(request, "index.html")
 
 
-@csrf_exempt
 @require_POST
 def api_parse(request: HttpRequest) -> JsonResponse:
     """Parse a Tanglish text input into proposed draft entries."""
@@ -133,7 +141,6 @@ def api_parse(request: HttpRequest) -> JsonResponse:
     })
 
 
-@csrf_exempt
 @require_POST
 def api_confirm(request: HttpRequest) -> JsonResponse:
     """Confirm a draft entry (with optional edits) to create a ledger entry."""
@@ -171,7 +178,6 @@ def api_confirm(request: HttpRequest) -> JsonResponse:
     })
 
 
-@csrf_exempt
 @require_POST
 def api_reject(request: HttpRequest) -> JsonResponse:
     """Reject a draft entry so it is never committed to the ledger."""
@@ -256,7 +262,6 @@ def api_customer_timeline(request: HttpRequest, customer_id: int) -> JsonRespons
     return JsonResponse({"status": "ok", **timeline})
 
 
-@csrf_exempt
 @require_POST
 def api_reverse(request: HttpRequest) -> JsonResponse:
     """Reverse a ledger entry (creates an offsetting audit entry, no deletion)."""
@@ -295,7 +300,6 @@ def api_reverse(request: HttpRequest) -> JsonResponse:
     })
 
 
-@csrf_exempt
 @require_POST
 def api_reminder(request: HttpRequest) -> JsonResponse:
     """Generate a polite, verified payment reminder message for a customer."""
@@ -353,7 +357,6 @@ def api_reminder(request: HttpRequest) -> JsonResponse:
     })
 
 
-@csrf_exempt
 @require_POST
 def api_agent_run(request: HttpRequest) -> JsonResponse:
     """Trigger a new Daily Collections Agent review run."""
@@ -445,7 +448,6 @@ def api_agent_run_detail(request: HttpRequest, run_id: int) -> JsonResponse:
     })
 
 
-@csrf_exempt
 @require_POST
 def api_agent_approve(request: HttpRequest) -> JsonResponse:
     """Approve a collection proposal for a customer and draft a reminder.
@@ -502,7 +504,6 @@ def api_agent_approve(request: HttpRequest) -> JsonResponse:
     })
 
 
-@csrf_exempt
 @require_POST
 def api_ask(request: HttpRequest) -> JsonResponse:
     """Read-only question answering endpoint about customer balances."""
@@ -533,7 +534,6 @@ def api_ask(request: HttpRequest) -> JsonResponse:
     return JsonResponse({"status": "ok", **result})
 
 
-@csrf_exempt
 @require_POST
 def api_parse_photo(request: HttpRequest) -> JsonResponse:
     """Parse a notebook photo uploaded via multipart form data into pending DraftEntry records.
@@ -623,7 +623,6 @@ def api_parse_photo(request: HttpRequest) -> JsonResponse:
     })
 
 
-@csrf_exempt
 @require_POST
 def api_transcribe(request: HttpRequest) -> JsonResponse:
     """Endpoint for audio transcription via Meta Muse Voice Transcribe.

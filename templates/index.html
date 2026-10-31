@@ -28,9 +28,10 @@
     <meta name="twitter:image" content="{{ APP_BASE_URL }}/static/home.png">
 
     <link rel="stylesheet" href="/static/css/style.css">
+    <meta name="csrf-token" content="{{ csrf_token }}">
 </head>
 
-<body>
+<body data-debug="{{ DEBUG|yesno:'true,false' }}">
     <div id="app" class="app-container">
         <!-- Top Sticky Header -->
         <header class="app-header">

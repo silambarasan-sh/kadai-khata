@@ -28,7 +28,7 @@ def setup_db(db):
 
 def audit_page_layout(page, screen_name):
     """Perform comprehensive layout audit on the currently visible page view."""
-    results = page.evaluate("""() => {
+    results = page.evaluate(r"""() => {
         const innerWidth = window.innerWidth;
         const htmlScroll = document.documentElement.scrollWidth;
         const bodyScroll = document.body.scrollWidth;
@@ -52,6 +52,7 @@ def audit_page_layout(page, screen_name):
         });
 
         for (const el of allVisible) {
+            const cs = window.getComputedStyle(el);
             // Horizontal scroll containers like chips lists or modal scrollables are allowed to scroll internally
             const isScrollTrack = el.classList.contains('chips-list') || el.classList.contains('candidate-options-row');
             if (el.offsetWidth > innerWidth + 1 && !isScrollTrack) {
@@ -66,6 +67,29 @@ def audit_page_layout(page, screen_name):
                 if (el.scrollWidth > el.clientWidth + 1) {
                     const idOrClass = el.id ? `#${el.id}` : `.${Array.from(el.classList).join('.')}`;
                     violations.push(`Text clipped in ${el.tagName}${idOrClass}: scrollWidth (${el.scrollWidth}) > clientWidth (${el.clientWidth}), text="${el.textContent.trim()}"`);
+                }
+            }
+
+            // 4. Check contrast for badge-neutral elements (e.g., Ask Balance "Read-only AI" badge)
+            if (el.classList.contains('badge-neutral')) {
+                const parseRgb = (str) => {
+                    const m = str.match(/\d+/g);
+                    return m ? m.slice(0, 3).map(Number) : [0, 0, 0];
+                };
+                const relLum = (rgb) => {
+                    const a = rgb.map(v => {
+                        v /= 255;
+                        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+                    });
+                    return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+                };
+                const fg = parseRgb(cs.color);
+                const bg = parseRgb(cs.backgroundColor);
+                const l1 = relLum(fg);
+                const l2 = relLum(bg);
+                const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+                if (ratio < 4.5) {
+                    violations.push(`Contrast ratio ${ratio.toFixed(2)}:1 on ${el.className} is below WCAG AA 4.5:1 (color: ${cs.color}, background: ${cs.backgroundColor})`);
                 }
             }
         }

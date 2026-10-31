@@ -491,8 +491,9 @@ body {
 }
 
 .badge-neutral {
-    background: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
+    background: #e2e8f0;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
 }
 
 .badge-aging-0-30 {

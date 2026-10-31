@@ -43,6 +43,8 @@ if render_external_hostname:
     if origin_from_hostname not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(origin_from_hostname)
 
+CSRF_FAILURE_VIEW = "ledger.views.csrf_failure"
+
 # Admin route disabled unless DJANGO_ENABLE_ADMIN=1
 DJANGO_ENABLE_ADMIN = os.getenv("DJANGO_ENABLE_ADMIN", "0").strip() in ("1", "true", "yes")
 

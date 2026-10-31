@@ -6,6 +6,11 @@ device emulation, and screenshot capture.
 """
 
 import os
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
 from pathlib import Path
 from contextlib import contextmanager
 try:
@@ -132,3 +137,88 @@ def launch_app(client, viewport=None, lang="en", fake_media=False, has_touch=Tru
             yield page, browser
         finally:
             browser.close()
+
+
+def find_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def wait_for_server(url, timeout=12.0):
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            with urllib.request.urlopen(url, timeout=1.0) as resp:
+                if resp.status == 200:
+                    return True
+        except Exception:
+            time.sleep(0.2)
+    return False
+
+
+@contextmanager
+def launch_real_server_app(viewport=None, lang="en", fake_media=True, has_touch=True):
+    """Context manager launching a real manage.py runserver subprocess and Playwright against it."""
+    if sync_playwright is None:
+        raise RuntimeError("Playwright is not installed. Install requirements-dev.txt to run e2e tests.")
+    if viewport is None:
+        viewport = {"width": 390, "height": 844}
+
+    port = find_free_port()
+    base_url = f"http://127.0.0.1:{port}"
+
+    env = os.environ.copy()
+    env["DJANGO_DEBUG"] = "1"
+    env["META_MODE"] = "mock"
+    env["ALLOWED_HOSTS"] = "127.0.0.1,localhost"
+    env["PYTHONUNBUFFERED"] = "1"
+
+    server_proc = subprocess.Popen(
+        [sys.executable, "-u", "manage.py", "runserver", f"127.0.0.1:{port}", "--noreload"],
+        cwd=str(BASE_DIR),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=env,
+    )
+
+    try:
+        if not wait_for_server(f"{base_url}/healthz", timeout=12.0):
+            raise RuntimeError(f"runserver failed to start on {base_url} within 12s.")
+
+        launch_args = []
+        if fake_media:
+            launch_args.extend([
+                "--use-fake-ui-for-media-stream",
+                "--use-fake-device-for-media-stream",
+            ])
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=launch_args)
+            context = browser.new_context(
+                viewport=viewport,
+                user_agent="Mozilla/5.0 (Linux; Android 12; Pixel 5) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36",
+                has_touch=has_touch,
+                is_mobile=True,
+                permissions=["microphone"],
+            )
+            page = context.new_page()
+            page.set_default_timeout(10000)
+
+            page.add_init_script(f"""
+                localStorage.setItem('kadai_khata_lang', '{lang}');
+            """)
+
+            page.goto(f"{base_url}/", wait_until="networkidle")
+            page.wait_for_selector("#app-title", timeout=10000)
+
+            try:
+                yield page, browser, base_url
+            finally:
+                browser.close()
+    finally:
+        server_proc.terminate()
+        try:
+            server_proc.wait(timeout=3.0)
+        except Exception:
+            server_proc.kill()

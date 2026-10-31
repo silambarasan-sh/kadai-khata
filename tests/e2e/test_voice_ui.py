@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from django.core.management import call_command
 from ledger.voice_client import validate_wav_bytes
-from tests.e2e.e2e_helper import launch_app
+from tests.e2e.e2e_helper import launch_app, launch_real_server_app
 
 pytestmark = [pytest.mark.e2e]
 
@@ -64,15 +64,16 @@ def test_voice_ui_recording_and_cancellation(client):
         page.wait_for_selector(".toast-info", timeout=5000)
 
 
-@pytest.mark.xfail(reason="Flaky in headless Chromium without real media clock/loopback")
 @pytest.mark.django_db(transaction=True)
-def test_voice_ui_full_flow_transcribe_and_draft(client):
-    """Test full voice flow: record, stop, transcribe, transcript review note, screenshot, and send to draft."""
+def test_voice_ui_full_flow_transcribe_and_draft():
+    """Test full voice flow: record, stop, transcribe, transcript review note, screenshot, and send to draft
+    against a real manage.py runserver subprocess in MOCK mode.
+    """
     SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    with launch_app(client, viewport={"width": 390, "height": 844}, lang="en", fake_media=True) as (page, browser):
-        # Inject scripted audio recorder into page for deterministic test audio
-        page.evaluate("""() => {
+    with launch_real_server_app(viewport={"width": 390, "height": 844}, lang="en", fake_media=True) as (page, browser, base_url):
+        # Inject scripted fake audio recorder via page.add_init_script for deterministic test audio
+        page.add_init_script("""
             window.__E2E_AUDIO_RECORDER__ = class ScriptedAudioRecorder {
                 constructor() {
                     this.isRecording = false;
@@ -80,7 +81,7 @@ def test_voice_ui_full_flow_transcribe_and_draft(client):
                 async start() {
                     this.isRecording = true;
                 }
-                stop() {
+                async stop() {
                     this.isRecording = false;
                     const sampleRate = 16000;
                     const numSamples = 16000;
@@ -106,7 +107,9 @@ def test_voice_ui_full_flow_transcribe_and_draft(client):
                     this.isRecording = false;
                 }
             };
-        }""")
+        """)
+
+        page.goto(f"{base_url}/", wait_until="networkidle")
 
         mic_btn = page.locator("#mic-btn")
 
@@ -128,16 +131,16 @@ def test_voice_ui_full_flow_transcribe_and_draft(client):
         transcript_val = sentence_input.input_value().strip()
         assert len(transcript_val) > 0, "Expected non-empty transcript in sentence input"
 
-        # 5. Verify review note banner is shown
+        # 4. Verify review note banner is shown
         voice_banner = page.locator("#voice-note-banner")
         page.wait_for_selector("#voice-note-banner", state="visible", timeout=5000)
 
-        # 6. Capture voice_transcript.png screenshot
+        # 5. Capture voice_transcript.png screenshot
         transcript_path = SCREENSHOTS_DIR / "voice_transcript.png"
         page.screenshot(path=str(transcript_path))
         assert transcript_path.exists() and transcript_path.stat().st_size > 5000
 
-        # 7. Press Send to convert transcript into draft
+        # 6. Press Send to convert transcript into draft
         send_btn = page.locator("#send-btn")
         send_btn.click()
 

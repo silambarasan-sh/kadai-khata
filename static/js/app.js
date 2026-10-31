@@ -457,6 +457,75 @@
             .replace(/'/g, "&#039;");
     }
 
+    function getCsrfToken() {
+        const name = "csrftoken=";
+        const decodedCookie = decodeURIComponent(document.cookie);
+        const ca = decodedCookie.split(";");
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i].trim();
+            if (c.indexOf(name) === 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        const metaTag = document.querySelector('meta[name="csrf-token"]');
+        if (metaTag) {
+            return metaTag.getAttribute("content") || "";
+        }
+        const inputTag = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        if (inputTag) {
+            return inputTag.value || "";
+        }
+        return "";
+    }
+
+    async function handleApiError(errOrResp, fallbackMsg = "Something went wrong.") {
+        if (errOrResp && typeof errOrResp.status === "number") {
+            const resp = errOrResp;
+            let errMsg = "";
+            try {
+                const text = await resp.text();
+                try {
+                    const json = JSON.parse(text);
+                    if (json && (json.error || json.message)) {
+                        errMsg = json.error || json.message;
+                    }
+                } catch {
+                    errMsg = `Server error ${resp.status}`;
+                }
+            } catch {
+                errMsg = `Server error ${resp.status}`;
+            }
+            if (!errMsg) {
+                errMsg = `Server error ${resp.status}`;
+            }
+            showToast(errMsg, "error");
+            return errMsg;
+        }
+
+        if (errOrResp instanceof TypeError && (
+            errOrResp.message.includes("Failed to fetch") ||
+            errOrResp.message.includes("NetworkError") ||
+            errOrResp.message.includes("network")
+        )) {
+            const msg = t("errorNetwork") || "Network request failed. Please check your connection.";
+            showToast(msg, "error");
+            return msg;
+        }
+
+        if (errOrResp && errOrResp.name === "AbortError") {
+            showToast("Request was cancelled.", "info");
+            return "Request was cancelled.";
+        }
+
+        console.error("Local application error:", errOrResp);
+        const isDebug = document.body.hasAttribute("data-debug") || window.__DJANGO_DEBUG__;
+        const msg = (isDebug && errOrResp && errOrResp.message)
+            ? `Error: ${errOrResp.message}`
+            : (fallbackMsg || "Something went wrong.");
+        showToast(msg, "error");
+        return msg;
+    }
+
     function t(key, vars = {}) {
         let text = (I18N[currentLang] && I18N[currentLang][key]) || (I18N.en && I18N.en[key]) || key;
         for (const [k, v] of Object.entries(vars)) {
@@ -770,11 +839,17 @@
         try {
             const resp = await fetch("/api/reverse/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: JSON.stringify({ entry_id: entryId, reason: reason })
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Reversal failed");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Reversal failed");
 
             showToast(t("reversalSuccess"), "success");
             // Refresh detail view & background customers
@@ -783,7 +858,7 @@
             }
             loadCustomers();
         } catch (err) {
-            showToast(err.message, "error");
+            await handleApiError(err, "Reversal failed");
         }
     }
 
@@ -799,14 +874,20 @@
         try {
             const resp = await fetch("/api/parse/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: JSON.stringify({
                     text: text,
                     provider: getSelectedEngine()
                 })
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Parsing failed");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Parsing failed");
 
             elements.sentenceInput.value = "";
             currentDrafts = data.drafts || [];
@@ -823,7 +904,7 @@
             renderDraftCards(currentDrafts);
             showView("confirm");
         } catch (err) {
-            showToast(err.message, "error");
+            await handleApiError(err, "Parsing failed");
         } finally {
             isParsing = false;
             elements.inputStatusBar.style.display = "none";
@@ -899,12 +980,20 @@
 
             const resp = await fetch("/api/parse-photo/", {
                 method: "POST",
+                headers: {
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: formData,
                 signal: abortController.signal,
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Photo parsing failed");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok || data.status === "error") {
-                throw new Error(data.error || "Photo parsing failed");
+            if (data.status === "error") {
+                showToast(data.error || "Photo parsing failed", "error");
+                return;
             }
 
             currentDrafts = data.drafts || [];
@@ -914,11 +1003,7 @@
             renderDraftCards(currentDrafts);
             showView("confirm");
         } catch (err) {
-            if (err.name === "AbortError") {
-                showToast("Photo reading was cancelled.", "info");
-            } else {
-                showToast(err.message, "error");
-            }
+            await handleApiError(err, "Photo parsing failed");
         } finally {
             clearInterval(photoTimer);
             isParsing = false;
@@ -1291,18 +1376,24 @@
         try {
             const resp = await fetch("/api/confirm/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: JSON.stringify({ draft_id: draftId, edits: edits })
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Confirmation failed");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Confirmation failed");
 
             showToast(t("confirmSuccess"), "success");
             currentDrafts = currentDrafts.filter(d => d.id !== draftId);
             renderDraftCards(currentDrafts);
             loadCustomers();
         } catch (err) {
-            showToast(err.message, "error");
+            await handleApiError(err, "Confirmation failed");
         }
     }
 
@@ -1310,17 +1401,23 @@
         try {
             const resp = await fetch("/api/reject/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: JSON.stringify({ draft_id: draftId })
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Reject failed");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Reject failed");
 
             showToast(t("rejectSuccess"), "info");
             currentDrafts = currentDrafts.filter(d => d.id !== draftId);
             renderDraftCards(currentDrafts);
         } catch (err) {
-            showToast(err.message, "error");
+            await handleApiError(err, "Reject failed");
         }
     }
 
@@ -1369,7 +1466,10 @@
         try {
             const resp = await fetch("/api/reminder/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: JSON.stringify({
                     customer_id: activeCustomer.id,
                     language: lang,
@@ -1377,8 +1477,11 @@
                     provider: getSelectedEngine()
                 })
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Failed to generate reminder");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Failed to generate reminder");
 
             // Display Output
             elements.reminderMessageText.textContent = data.message;
@@ -1405,7 +1508,7 @@
 
             elements.reminderOutputBox.style.display = "flex";
         } catch (err) {
-            showToast(err.message, "error");
+            await handleApiError(err, "Parsing failed");
         } finally {
             elements.generateReminderBtn.disabled = false;
             elements.generateBtnText.textContent = t("generateDraft");
@@ -1436,14 +1539,20 @@
         try {
             const resp = await fetch("/api/ask/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: JSON.stringify({
                     question: q,
                     provider: getSelectedEngine()
                 }),
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Failed to get answer");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Failed to get answer");
 
             elements.askAnswerText.textContent = data.answer;
             const src = (data.source_label || "mock").toLowerCase();
@@ -1452,7 +1561,7 @@
             elements.askVerifiedBadge.style.display = data.verified ? "inline-block" : "none";
             elements.askResultBox.style.display = "block";
         } catch (err) {
-            showToast(err.message, "error");
+            await handleApiError(err, "Parsing failed");
         } finally {
             elements.askSubmitBtn.disabled = false;
             elements.askSubmitBtn.textContent = t("askBtn");
@@ -1468,17 +1577,23 @@
         try {
             const resp = await fetch("/api/agent/run/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: JSON.stringify({}),
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Collections review failed");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Collections review failed");
 
             latestAgentRun = data.run;
             renderCollectionsPlan(data.run);
             showToast(t("runReviewSuccess"), "success");
         } catch (err) {
-            showToast(err.message, "error");
+            await handleApiError(err, "Parsing failed");
         } finally {
             elements.runCollectionsBtn.disabled = false;
             elements.runBtnSpinner.style.display = "none";
@@ -1744,11 +1859,17 @@
         try {
             const resp = await fetch("/api/agent/approve/", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
                 body: JSON.stringify({ run_id: runId, customer_id: customerId }),
             });
+            if (!resp.ok) {
+                await handleApiError(resp, "Approval draft failed");
+                return;
+            }
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Approval draft failed");
 
             // Open reminder modal with the generated draft
             elements.reminderCustomerSubtitle.textContent = `${data.customer_name} (₹${data.balance})`;
@@ -1769,20 +1890,19 @@
             elements.reminderOutputBox.style.display = "block";
             elements.reminderModal.style.display = "flex";
         } catch (err) {
-            showToast(err.message, "error");
+            await handleApiError(err, "Approval draft failed");
         }
     }
 
-    // --- Web Audio Recording & 16kHz Mono 16-bit WAV Encoding ---
+    // --- Web Audio Recording via MediaRecorder & 16kHz Mono 16-bit WAV Encoding ---
     class AudioRecorder {
         constructor() {
-            this.audioContext = null;
             this.mediaStream = null;
-            this.sourceNode = null;
-            this.processorNode = null;
-            this.recordedSamples = [];
-            this.targetSampleRate = 16000;
+            this.mediaRecorder = null;
+            this.audioChunks = [];
             this.isRecording = false;
+            this.mimeType = "";
+            this.targetSampleRate = 16000;
         }
 
         async start() {
@@ -1807,108 +1927,124 @@
                 }
             }
 
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContextClass) {
-                throw new Error("UNSUPPORTED_BROWSER");
-            }
-            this.audioContext = new AudioContextClass();
-            if (this.audioContext.state === "suspended") {
-                await this.audioContext.resume();
+            // Pick supported audio container type
+            this.mimeType = "";
+            if (typeof MediaRecorder !== "undefined" && typeof MediaRecorder.isTypeSupported === "function") {
+                const candidates = [
+                    "audio/webm;codecs=opus",
+                    "audio/webm",
+                    "audio/mp4",
+                    "audio/aac",
+                    "audio/ogg;codecs=opus"
+                ];
+                for (const candidate of candidates) {
+                    if (MediaRecorder.isTypeSupported(candidate)) {
+                        this.mimeType = candidate;
+                        break;
+                    }
+                }
             }
 
-            this.recordedSamples = [];
-            this.sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);
+            try {
+                this.mediaRecorder = this.mimeType
+                    ? new MediaRecorder(this.mediaStream, { mimeType: this.mimeType })
+                    : new MediaRecorder(this.mediaStream);
+            } catch {
+                this.mediaRecorder = new MediaRecorder(this.mediaStream);
+            }
 
-            // Buffer size 4096, 1 input channel, 1 output channel
-            this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
-            this.processorNode.onaudioprocess = (e) => {
-                if (!this.isRecording) return;
-                const channelData = e.inputBuffer.getChannelData(0);
-                this.recordedSamples.push(new Float32Array(channelData));
+            this.audioChunks = [];
+            this.mediaRecorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) {
+                    this.audioChunks.push(e.data);
+                }
             };
 
-            this.sourceNode.connect(this.processorNode);
-            this.processorNode.connect(this.audioContext.destination);
             this.isRecording = true;
+            this.mediaRecorder.start(200);
         }
 
-        stop() {
+        async stop() {
             this.isRecording = false;
-            if (this.processorNode) {
-                this.processorNode.disconnect();
-                this.processorNode.onaudioprocess = null;
+            if (!this.mediaRecorder || this.mediaRecorder.state === "inactive") {
+                this.releaseStream();
+                return null;
             }
-            if (this.sourceNode) {
-                this.sourceNode.disconnect();
+
+            const stopPromise = new Promise((resolve) => {
+                this.mediaRecorder.onstop = () => resolve();
+            });
+            try {
+                this.mediaRecorder.stop();
+            } catch (err) {
+                console.error("voice stage: stop recorder", err);
             }
+            await stopPromise;
+
+            // Release mic tracks
+            this.releaseStream();
+
+            if (this.audioChunks.length === 0) {
+                return null;
+            }
+
+            const rawBlob = new Blob(this.audioChunks, { type: this.mimeType || "audio/webm" });
+            if (rawBlob.size === 0) {
+                return null;
+            }
+
+            return await this.resampleAndEncodeWAV(rawBlob);
+        }
+
+        releaseStream() {
             if (this.mediaStream) {
-                this.mediaStream.getTracks().forEach(track => track.stop());
+                try {
+                    this.mediaStream.getTracks().forEach(track => track.stop());
+                } catch {}
+                this.mediaStream = null;
             }
-            const ctxRate = this.audioContext ? this.audioContext.sampleRate : 48000;
-            if (this.audioContext && this.audioContext.state !== "closed") {
-                this.audioContext.close().catch(() => {});
-            }
-
-            let totalLength = 0;
-            for (const chunk of this.recordedSamples) {
-                totalLength += chunk.length;
-            }
-            if (totalLength === 0) {
-                return null;
-            }
-
-            const mergedSamples = new Float32Array(totalLength);
-            let offset = 0;
-            for (const chunk of this.recordedSamples) {
-                mergedSamples.set(chunk, offset);
-                offset += chunk.length;
-            }
-
-            const resampled = this.downsample(mergedSamples, ctxRate, this.targetSampleRate);
-            if (!resampled || resampled.length === 0) {
-                return null;
-            }
-            return this.encodeWAV(resampled, this.targetSampleRate);
         }
 
         cancel() {
             this.isRecording = false;
-            if (this.processorNode) {
-                this.processorNode.disconnect();
-                this.processorNode.onaudioprocess = null;
+            if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
+                try { this.mediaRecorder.stop(); } catch {}
             }
-            if (this.sourceNode) {
-                this.sourceNode.disconnect();
-            }
-            if (this.mediaStream) {
-                this.mediaStream.getTracks().forEach(track => track.stop());
-            }
-            if (this.audioContext && this.audioContext.state !== "closed") {
-                this.audioContext.close().catch(() => {});
-            }
-            this.recordedSamples = [];
+            this.releaseStream();
+            this.audioChunks = [];
         }
 
-        downsample(buffer, fromRate, toRate) {
-            if (fromRate === toRate) return buffer;
-            if (fromRate < toRate) return buffer;
-            const sampleRateRatio = fromRate / toRate;
-            const newLength = Math.round(buffer.length / sampleRateRatio);
-            const result = new Float32Array(newLength);
-            let offsetResult = 0;
-            let offsetBuffer = 0;
-            while (offsetResult < result.length) {
-                const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
-                let accum = 0, count = 0;
-                for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
-                    accum += buffer[i];
-                    count++;
-                }
-                result[offsetResult] = count > 0 ? (accum / count) : 0;
-                offsetResult++;
-                offsetBuffer = nextOffsetBuffer;
+        async resampleAndEncodeWAV(rawBlob) {
+            const arrayBuffer = await rawBlob.arrayBuffer();
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) {
+                throw new Error("UNSUPPORTED_BROWSER");
             }
-            return result;
+            const audioCtx = new AudioContextClass();
+            let audioBuffer;
+            try {
+                audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            } finally {
+                audioCtx.close().catch(() => {});
+            }
+
+            if (!audioBuffer || audioBuffer.duration <= 0) {
+                return null;
+            }
+
+            const targetLength = Math.max(1, Math.ceil(audioBuffer.duration * this.targetSampleRate));
+            const OfflineCtxClass = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+            const offlineCtx = new OfflineCtxClass(1, targetLength, this.targetSampleRate);
+
+            const source = offlineCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(offlineCtx.destination);
+            source.start(0);
+
+            const renderedBuffer = await offlineCtx.startRendering();
+            const channelData = renderedBuffer.getChannelData(0);
+
+            return this.encodeWAV(channelData, this.targetSampleRate);
         }
 
         encodeWAV(samples, sampleRate) {
@@ -1946,18 +2082,26 @@
 
     let audioRecorder = null;
     let isRecordingVoice = false;
+    let isStartingVoice = false;
+    let voiceStartPromise = null;
     let voiceCountdownTimer = null;
     let voiceSecondsLeft = 20;
     let voiceTranscribeTimer = null;
     let voiceTranscribeSeconds = 0;
 
     async function startVoiceRecording() {
-        if (isRecordingVoice || isParsing) return;
+        if (isRecordingVoice || isStartingVoice || isParsing) return;
+        isStartingVoice = true;
+
         const RecorderClass = (typeof window !== "undefined" && window.__E2E_AUDIO_RECORDER__) ? window.__E2E_AUDIO_RECORDER__ : AudioRecorder;
         audioRecorder = new RecorderClass();
+
         try {
-            await audioRecorder.start();
+            voiceStartPromise = audioRecorder.start();
+            await voiceStartPromise;
         } catch (err) {
+            isStartingVoice = false;
+            voiceStartPromise = null;
             if (err.message === "PERMISSION_DENIED") {
                 showToast(t("voicePermissionDenied"), "warning");
             } else if (err.message === "NO_MICROPHONE") {
@@ -1970,6 +2114,8 @@
             return;
         }
 
+        isStartingVoice = false;
+        voiceStartPromise = null;
         isRecordingVoice = true;
         voiceSecondsLeft = 20;
         if (elements.micBtn) {
@@ -2000,11 +2146,13 @@
     }
 
     function cancelVoiceRecording() {
-        if (!isRecordingVoice && !voiceTranscribeTimer) return;
+        if (!isRecordingVoice && !voiceTranscribeTimer && !isStartingVoice) return;
         clearInterval(voiceCountdownTimer);
         clearInterval(voiceTranscribeTimer);
         voiceCountdownTimer = null;
         voiceTranscribeTimer = null;
+        isStartingVoice = false;
+        voiceStartPromise = null;
         if (audioRecorder) {
             audioRecorder.cancel();
             audioRecorder = null;
@@ -2015,20 +2163,46 @@
     }
 
     async function stopVoiceRecordingAndUpload() {
-        if (!isRecordingVoice) return;
+        if (!isRecordingVoice && !isStartingVoice) return;
         clearInterval(voiceCountdownTimer);
         voiceCountdownTimer = null;
-        isRecordingVoice = false;
 
+        // If stop was pressed while start is still resolving getUserMedia, wait for it
+        if (isStartingVoice && voiceStartPromise) {
+            try {
+                await voiceStartPromise;
+            } catch {
+                resetVoiceUI();
+                return;
+            }
+        }
+        isRecordingVoice = false;
+        isStartingVoice = false;
+
+        let currentStage = "stop recorder";
         let wavBlob = null;
-        try {
-            wavBlob = audioRecorder ? audioRecorder.stop() : null;
-        } catch (e) {
+        const isDebug = document.body.dataset.debug === "true" || window.__DJANGO_DEBUG__;
+
+        const reportStageError = (stage, err) => {
+            console.error("voice stage:", stage, err);
             resetVoiceUI();
-            showToast("Failed to process recorded audio.", "error");
+            const prefix = isDebug ? `[Stage: ${stage}] ` : "";
+            showToast(`${prefix}Failed to process recorded audio.`, "error");
+        };
+
+        try {
+            currentStage = "stop recorder";
+            if (!audioRecorder) {
+                resetVoiceUI();
+                return;
+            }
+            wavBlob = await audioRecorder.stop();
+        } catch (err) {
+            reportStageError(currentStage, err);
             return;
         }
 
+        currentStage = "validate size";
         if (!wavBlob || wavBlob.size <= 44) {
             resetVoiceUI();
             showToast(t("voiceTooShort"), "warning");
@@ -2058,30 +2232,42 @@
             }
         }, 1000);
 
-        const formData = new FormData();
-        formData.append("audio", wavBlob, "voice_input.wav");
+        let formData;
+        try {
+            currentStage = "build FormData";
+            formData = new FormData();
+            formData.append("audio", wavBlob, "voice_input.wav");
+        } catch (err) {
+            clearInterval(voiceTranscribeTimer);
+            voiceTranscribeTimer = null;
+            reportStageError(currentStage, err);
+            return;
+        }
 
         try {
+            currentStage = "fetch";
+            const csrfToken = getCsrfToken();
+            const headers = {};
+            if (csrfToken) {
+                headers["X-CSRFToken"] = csrfToken;
+            }
+
             const resp = await fetch("/api/transcribe/", {
                 method: "POST",
-                headers: {
-                    "X-CSRFToken": getCsrfToken()
-                },
+                headers: headers,
                 body: formData
             });
 
             clearInterval(voiceTranscribeTimer);
             voiceTranscribeTimer = null;
+            resetVoiceUI();
 
-            if (resp.status === 429) {
-                resetVoiceUI();
-                showToast(t("voiceRateLimit"), "warning");
+            if (!resp.ok) {
+                await handleApiError(resp, "Failed to transcribe audio.");
                 return;
             }
 
             const data = await resp.json();
-            resetVoiceUI();
-
             if (data.status === "error") {
                 if (data.error && data.error.includes("Demo budget reached")) {
                     showToast(t("voiceBudgetReached"), "warning");
@@ -2104,11 +2290,8 @@
             clearInterval(voiceTranscribeTimer);
             voiceTranscribeTimer = null;
             resetVoiceUI();
-            if (err.name === "AbortError" || (err.message && err.message.includes("timeout"))) {
-                showToast(t("voiceTimeout"), "warning");
-            } else {
-                showToast(t("errorNetwork"), "error");
-            }
+            console.error("voice stage:", currentStage, err);
+            await handleApiError(err, "Failed to transcribe audio.");
         }
     }
 
