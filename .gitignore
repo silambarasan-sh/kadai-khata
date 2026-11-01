@@ -44,6 +44,8 @@ htmlcov/
 .nox/
 
 # Voice sample recordings (never commit audio binaries)
+_raw/
+*_raw/
 tests/voice_samples/*
 !tests/voice_samples/expected.txt
 !tests/voice_samples/expected_drafts.json
