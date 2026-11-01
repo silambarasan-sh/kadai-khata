@@ -412,3 +412,22 @@ def test_photo_drafts_title_case_latin_and_preserve_tamil():
     assert res.drafts[1].name_latin == "Murugan"
     assert "முருகன்" in res.drafts[1].source_text
 
+
+@pytest.mark.django_db
+def test_api_parse_photo_decompression_bomb_rejected(client):
+    """Verify that images exceeding 40 megapixels (decompression bomb guard) are rejected with HTTP 400."""
+    from PIL import Image
+
+    # Create a small-filesize (~650kB) JPEG with 42 megapixels (7000x6000)
+    img = Image.new("RGB", (7000, 6000), color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=50)
+    bomb_bytes = buf.getvalue()
+
+    file = SimpleUploadedFile("huge_pixels.jpg", bomb_bytes, content_type="image/jpeg")
+    resp = client.post("/api/parse-photo/", {"image": file}, format="multipart")
+    assert resp.status_code == 400
+    data = resp.json()
+    assert data["status"] == "error"
+    assert "exceeds 40 megapixel limit" in data["error"]
+

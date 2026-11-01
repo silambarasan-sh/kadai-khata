@@ -202,3 +202,4 @@ Evaluated across 7 variants × 2 independent repeats (**56 total live Meta API c
 3. Transcripts periodically introduced Telugu, Kannada, or Devanagari script characters despite Tamil language hints.
 4. "Pass" strictly measures downstream transaction draft extraction accuracy, not verbatim acoustic transcription accuracy.
 5. In all cases, the transcribed text is placed into the input field for the shopkeeper to review and edit before sending.
+

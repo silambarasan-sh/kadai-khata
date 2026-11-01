@@ -30,6 +30,8 @@ from ledger.meta_client import MetaClient, MetaResult
 logger = logging.getLogger(__name__)
 
 MAX_PHOTO_SIZE_BYTES = 4 * 1024 * 1024  # 4 MB
+MAX_PHOTO_PIXELS = 40_000_000  # 40 megapixels (decompression bomb guard)
+MAX_PHOTO_DIMENSION = 2048  # Target max dimension for thumbnail downscale
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 PHOTO_TOOL_SCHEMAS = [
@@ -304,6 +306,39 @@ def parse_photo_in_memory(
     if mime_type.lower() not in ALLOWED_MIME_TYPES:
         raise ValueError(f"Unsupported MIME type '{mime_type}'. Supported: image/jpeg, image/png, image/webp.")
 
+    # 2. Decompression bomb guard & memory optimization via Pillow
+    import io
+    from PIL import Image
+
+    processed_bytes = image_bytes
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            width, height = img.size
+            pixel_count = width * height
+            if pixel_count > MAX_PHOTO_PIXELS:
+                raise ValueError(
+                    f"Image resolution ({width}x{height} = {pixel_count / 1_000_000:.1f}MP) "
+                    f"exceeds 40 megapixel limit. Please upload a normal photo."
+                )
+
+            # Optimization: downscale with draft/thumbnail if image is huge to avoid OOM on 512MB RAM
+            if width > MAX_PHOTO_DIMENSION or height > MAX_PHOTO_DIMENSION:
+                if getattr(img, "format", "").upper() == "JPEG":
+                    try:
+                        img.draft("RGB", (MAX_PHOTO_DIMENSION, MAX_PHOTO_DIMENSION))
+                    except Exception:
+                        pass
+                img_copy = img.copy()
+                img_copy.thumbnail((MAX_PHOTO_DIMENSION, MAX_PHOTO_DIMENSION), Image.Resampling.LANCZOS)
+                buf = io.BytesIO()
+                save_fmt = "JPEG" if mime_type.lower() == "image/jpeg" else "PNG"
+                img_copy.save(buf, format=save_fmt, quality=85)
+                processed_bytes = buf.getvalue()
+    except ValueError:
+        raise
+    except Exception as exc:
+        logger.debug("Pillow header inspection skipped: %s", exc)
+
     effective_mode = mode or getattr(settings, "META_MODE", "mock")
 
     usage_tokens: Dict[str, int] = {
@@ -326,7 +361,7 @@ def parse_photo_in_memory(
         }
     else:
         # Live Meta Chat Completions with base64 data url
-        b64_str = base64.b64encode(image_bytes).decode("utf-8")
+        b64_str = base64.b64encode(processed_bytes).decode("utf-8")
         data_url = f"data:{mime_type};base64,{b64_str}"
 
         messages = [

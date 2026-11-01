@@ -74,3 +74,4 @@ Meta's open-weight model **Muse Spark Open (`meta-models/muse-spark-open-1026`)*
 - [x] Live web deployment working in an incognito window: https://kadai-khata.onrender.com
 - [x] Meta hackathon credits configured and verified live
 - [ ] Public X (Twitter) post shared with demo link and hashtags
+

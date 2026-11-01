@@ -131,17 +131,32 @@ def test_confirm_creates_exactly_one_ledger_entry():
 
 @pytest.mark.django_db
 def test_double_confirm_does_not_duplicate():
-    """Idempotency check: confirming twice raises an error and creates no extra entries."""
+    """Idempotency check: confirming twice returns success with saved entry and creates no extra entries."""
     res = parse_text("Karthik 350 gpay pannaan")
     draft = res.drafts[0]
 
-    confirm(draft.id)
+    entry1, balance1 = confirm(draft.id)
     assert LedgerEntry.objects.count() == 1
 
-    with pytest.raises(ParsingError, match="already confirmed"):
-        confirm(draft.id)
-
+    # Second confirm returns the same entry and balance without duplicate
+    entry2, balance2 = confirm(draft.id)
+    assert entry2.id == entry1.id
+    assert balance2 == balance1
     assert LedgerEntry.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_double_reject_idempotency():
+    """Idempotency check: rejecting twice returns draft cleanly without error."""
+    res = parse_text("Murugan 180 cash kuduthaar")
+    draft = res.drafts[0]
+
+    r1 = reject(draft.id)
+    assert r1.status == DraftStatus.REJECTED
+
+    r2 = reject(draft.id)
+    assert r2.status == DraftStatus.REJECTED
+    assert LedgerEntry.objects.count() == 0
 
 
 @pytest.mark.django_db

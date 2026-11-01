@@ -9,6 +9,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.14.8
+      - key: WEB_CONCURRENCY
+        value: "1"
       - key: DJANGO_DEBUG
         value: "False"
       - key: DJANGO_SECRET_KEY

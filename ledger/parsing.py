@@ -581,8 +581,29 @@ def confirm(draft_id: Union[int, str], edits: Optional[Dict[str, Any]] = None) -
         raise ParsingError(f"DraftEntry with ID {draft_id} not found.") from exc
 
     if draft.status == DraftStatus.CONFIRMED:
-        # Idempotent safeguard: prevent double save
-        raise ParsingError(f"Draft {draft_id} is already confirmed.")
+        # Idempotent safeguard: return existing entry and current customer balance without duplicate save
+        from ledger.models import LedgerEntry
+        existing_entry = None
+        if draft.matched_customer:
+            existing_entry = (
+                LedgerEntry.objects.filter(
+                    customer=draft.matched_customer,
+                    source_text=draft.source_text,
+                    kind=draft.kind,
+                    amount=draft.amount,
+                ).order_by("-id").first()
+            )
+            if not existing_entry:
+                existing_entry = LedgerEntry.objects.filter(customer=draft.matched_customer).order_by("-id").first()
+        if not existing_entry:
+            existing_entry = LedgerEntry.objects.filter(
+                customer__name__iexact=draft.customer_name,
+                source_text=draft.source_text,
+            ).order_by("-id").first()
+        new_balance = get_balance(existing_entry.customer) if existing_entry else (
+            get_balance(draft.matched_customer) if draft.matched_customer else Decimal("0.00")
+        )
+        return existing_entry, new_balance
 
     if draft.status == DraftStatus.REJECTED:
         raise ParsingError(f"Draft {draft_id} has been rejected and cannot be confirmed.")
@@ -644,6 +665,10 @@ def reject(draft_id: Union[int, str]) -> DraftEntry:
 
     if draft.status == DraftStatus.CONFIRMED:
         raise ParsingError(f"Cannot reject draft {draft_id} because it was already confirmed.")
+
+    if draft.status == DraftStatus.REJECTED:
+        # Idempotent safeguard: already rejected
+        return draft
 
     draft.status = DraftStatus.REJECTED
     draft.decided_at = timezone.now()

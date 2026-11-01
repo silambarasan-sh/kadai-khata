@@ -48,6 +48,9 @@ def test_healthz_endpoint(client: Client):
     assert data["status"] == "ok"
     assert "mode" in data
     assert data["mode"] == getattr(settings, "META_MODE", "mock")
+    assert "uptime_seconds" in data
+    assert isinstance(data["uptime_seconds"], (int, float))
+    assert data["uptime_seconds"] >= 0
 
     # Also test with trailing slash /healthz/
     resp_slash = client.get("/healthz/")

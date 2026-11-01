@@ -1,9 +1,12 @@
 """URL configuration for kadai_khata project."""
 
+import time
 from django.conf import settings
 from django.contrib import admin
 from django.http import HttpResponse, JsonResponse
 from django.urls import include, path, re_path
+
+SERVER_START_TIME = time.time()
 
 SVG_FAVICON = (
     """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">"""
@@ -20,10 +23,11 @@ def favicon_view(request):
 
 
 def healthz(request):
-    """Health check endpoint returning system status and Meta integration mode."""
+    """Health check endpoint returning system status, Meta integration mode, and uptime."""
     return JsonResponse({
         "status": "ok",
         "mode": getattr(settings, "META_MODE", "mock"),
+        "uptime_seconds": round(time.time() - SERVER_START_TIME, 1),
     })
 
 

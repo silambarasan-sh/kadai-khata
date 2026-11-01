@@ -31,13 +31,16 @@ echo "==> Demo data checked / seeded successfully."
 
 # 3. Start Gunicorn web server with gthread and 120s timeout
 PORT="${PORT:-8000}"
-echo "==> Starting Gunicorn on 0.0.0.0:${PORT} (gthread, 2 workers, 4 threads, 120s timeout)..."
+WORKERS="${WEB_CONCURRENCY:-1}"
+echo "==> Starting Gunicorn on 0.0.0.0:${PORT} (gthread, ${WORKERS} worker(s), 4 threads, 120s timeout, max-requests 200)..."
 exec gunicorn kadai_khata.wsgi:application \
     --bind "0.0.0.0:${PORT}" \
-    --workers 2 \
+    --workers "${WORKERS}" \
     --threads 4 \
     --worker-class gthread \
     --timeout 120 \
+    --max-requests 200 \
+    --max-requests-jitter 20 \
     --access-logfile - \
     --error-logfile -
 

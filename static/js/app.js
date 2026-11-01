@@ -158,7 +158,7 @@
             step1: "வாக்கியத்தை தட்டச்சு செய்யவும் அல்லது பேசவும்",
             step2: "வரைவை சரிபார்க்கவும்",
             step3: "உறுதி செய்யவும்",
-            demoBannerText: "டெமோ சூழல் · கற்பனையான சோதனை தரவு மட்டுமே",
+            demoBannerText: "டெமோ சூழல் · சேவையகம் மறுதொடங்கும்போது தரவு மீட்டமைக்கப்படும்",
             voiceNeedsHttps: "குரல் உள்ளீட்டிற்கு HTTPS மற்றும் மைக்ரோஃபோன் அனுமதி தேவை",
             reminderTitle: "கடன் நினைவூட்டல்",
             reminderLanguage: "மொழி",
@@ -476,6 +476,20 @@
             return inputTag.value || "";
         }
         return "";
+    }
+
+    async function apiFetch(url, options = {}, shouldRetry = false) {
+        try {
+            return await fetch(url, options);
+        } catch (networkError) {
+            if (!shouldRetry) {
+                throw networkError;
+            }
+            // True network failure: fetch itself rejected. Retry once after 1.5s
+            showToast("Reconnecting...", "info");
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            return await fetch(url, options);
+        }
     }
 
     async function handleApiError(errOrResp, fallbackMsg = "Something went wrong.") {
@@ -872,7 +886,7 @@
         elements.sendBtn.disabled = true;
 
         try {
-            const resp = await fetch("/api/parse/", {
+            const resp = await apiFetch("/api/parse/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -882,7 +896,7 @@
                     text: text,
                     provider: getSelectedEngine()
                 })
-            });
+            }, true);
             if (!resp.ok) {
                 await handleApiError(resp, "Parsing failed");
                 return;
@@ -978,14 +992,14 @@
             const formData = new FormData();
             formData.append("image", scaledBlob, "notebook_page.jpg");
 
-            const resp = await fetch("/api/parse-photo/", {
+            const resp = await apiFetch("/api/parse-photo/", {
                 method: "POST",
                 headers: {
                     "X-CSRFToken": getCsrfToken()
                 },
                 body: formData,
                 signal: abortController.signal,
-            });
+            }, true);
             if (!resp.ok) {
                 await handleApiError(resp, "Photo parsing failed");
                 return;
@@ -1374,24 +1388,31 @@
 
     async function handleConfirmDraft(draftId, edits) {
         try {
-            const resp = await fetch("/api/confirm/", {
+            const resp = await apiFetch("/api/confirm/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "X-CSRFToken": getCsrfToken()
                 },
                 body: JSON.stringify({ draft_id: draftId, edits: edits })
-            });
+            }, true);
             if (!resp.ok) {
                 await handleApiError(resp, "Confirmation failed");
                 return;
             }
             const data = await resp.json();
 
-            showToast(t("confirmSuccess"), "success");
-            currentDrafts = currentDrafts.filter(d => d.id !== draftId);
-            renderDraftCards(currentDrafts);
-            loadCustomers();
+            if (data.status === "ok") {
+                const balMsg = (data.new_balance !== undefined && data.new_balance !== null)
+                    ? ` (${t("balance") || "Balance"}: ₹${data.new_balance})`
+                    : "";
+                showToast(`${t("confirmSuccess")}${balMsg}`, "success");
+                currentDrafts = currentDrafts.filter(d => d.id !== draftId);
+                renderDraftCards(currentDrafts);
+                await loadCustomers();
+            } else {
+                showToast(data.error || data.message || "Confirmation failed", "error");
+            }
         } catch (err) {
             await handleApiError(err, "Confirmation failed");
         }
@@ -1399,14 +1420,14 @@
 
     async function handleRejectDraft(draftId) {
         try {
-            const resp = await fetch("/api/reject/", {
+            const resp = await apiFetch("/api/reject/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "X-CSRFToken": getCsrfToken()
                 },
                 body: JSON.stringify({ draft_id: draftId })
-            });
+            }, true);
             if (!resp.ok) {
                 await handleApiError(resp, "Reject failed");
                 return;
@@ -1464,7 +1485,7 @@
         elements.generateBtnText.textContent = "Generating...";
 
         try {
-            const resp = await fetch("/api/reminder/", {
+            const resp = await apiFetch("/api/reminder/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -1476,7 +1497,7 @@
                     tone: tone,
                     provider: getSelectedEngine()
                 })
-            });
+            }, true);
             if (!resp.ok) {
                 await handleApiError(resp, "Failed to generate reminder");
                 return;
@@ -1537,7 +1558,7 @@
         elements.askSubmitBtn.disabled = true;
         elements.askSubmitBtn.textContent = "...";
         try {
-            const resp = await fetch("/api/ask/", {
+            const resp = await apiFetch("/api/ask/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -1547,7 +1568,7 @@
                     question: q,
                     provider: getSelectedEngine()
                 }),
-            });
+            }, true);
             if (!resp.ok) {
                 await handleApiError(resp, "Failed to get answer");
                 return;
@@ -1575,14 +1596,14 @@
         elements.runBtnText.textContent = t("runningReview");
 
         try {
-            const resp = await fetch("/api/agent/run/", {
+            const resp = await apiFetch("/api/agent/run/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "X-CSRFToken": getCsrfToken()
                 },
                 body: JSON.stringify({}),
-            });
+            }, true);
             if (!resp.ok) {
                 await handleApiError(resp, "Collections review failed");
                 return;
@@ -2252,11 +2273,11 @@
                 headers["X-CSRFToken"] = csrfToken;
             }
 
-            const resp = await fetch("/api/transcribe/", {
+            const resp = await apiFetch("/api/transcribe/", {
                 method: "POST",
                 headers: headers,
                 body: formData
-            });
+            }, true);
 
             clearInterval(voiceTranscribeTimer);
             voiceTranscribeTimer = null;

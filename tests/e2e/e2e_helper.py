@@ -145,7 +145,7 @@ def find_free_port():
         return s.getsockname()[1]
 
 
-def wait_for_server(url, timeout=12.0):
+def wait_for_server(url, timeout=20.0):
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -183,8 +183,8 @@ def launch_real_server_app(viewport=None, lang="en", fake_media=True, has_touch=
     )
 
     try:
-        if not wait_for_server(f"{base_url}/healthz", timeout=12.0):
-            raise RuntimeError(f"runserver failed to start on {base_url} within 12s.")
+        if not wait_for_server(f"{base_url}/healthz", timeout=20.0):
+            raise RuntimeError(f"runserver failed to start on {base_url} within 20s.")
 
         launch_args = []
         if fake_media:
