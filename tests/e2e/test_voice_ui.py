@@ -10,6 +10,8 @@ Verifies:
 6. Real Web Audio WAV encoder output passes server-side validate_wav_bytes.
 """
 
+import os
+import tempfile
 from pathlib import Path
 import pytest
 from django.core.management import call_command
@@ -19,7 +21,10 @@ from tests.e2e.e2e_helper import launch_app, launch_real_server_app
 pytestmark = [pytest.mark.e2e]
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SCREENSHOTS_DIR = BASE_DIR / "docs" / "screenshots"
+if os.environ.get("SAVE_SCREENSHOTS") == "1":
+    SCREENSHOTS_DIR = BASE_DIR / "docs" / "screenshots"
+else:
+    SCREENSHOTS_DIR = Path(tempfile.gettempdir()) / "kadai_khata_test_screenshots"
 
 
 @pytest.fixture(autouse=True)
@@ -136,6 +141,7 @@ def test_voice_ui_full_flow_transcribe_and_draft():
         page.wait_for_selector("#voice-note-banner", state="visible", timeout=5000)
 
         # 5. Capture voice_transcript.png screenshot
+        SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
         transcript_path = SCREENSHOTS_DIR / "voice_transcript.png"
         page.screenshot(path=str(transcript_path))
         assert transcript_path.exists() and transcript_path.stat().st_size > 5000

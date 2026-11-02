@@ -51,7 +51,7 @@ Empirically, tuning reasoning effort to minimal reduced latency by 54.7% (2542.9
 - **In-Memory Handwritten Notebook Digitizer**: Created a vision pipeline powered by Meta Muse Spark 1.3 that parses double-column kirana notebook pages into draft entries in memory, with automated per-column total checking, Tamil script preservation, and scratch-out row detection.
 - **Voice Transcription with Local Keyword Biasing**: Implemented in-browser Web Audio recording and server-side transcription using Meta Muse Voice Transcribe, evaluated across 56 live API probe calls ($n = 4$ clips, 7 variants × 2 repeats) with shopkeeper-in-the-loop transcript review before sending.
 - **Verifiable Collections Agent & Hash-Chain Audit**: Developed an autonomous collections agent that proposes prioritized repayment follow-ups, verified by deterministic python code against ground truth ledger state and logged in an append-only, tamper-evident SHA-256 hash chain with offline replay verification.
-- **Mobile-First Zero-Build Application**: Delivered a clean mobile UI with live English/Tamil script switching, WhatsApp reminder deep-linking, non-destructive audit reversals, dual-engine runtime switching (Meta Model API vs Baseten), and 156 automated tests (142 offline + 14 browser E2E).
+- **Mobile-First Zero-Build Application**: Delivered a clean mobile UI with live English/Tamil script switching, WhatsApp reminder deep-linking, non-destructive audit reversals, dual-engine runtime switching (Meta Model API vs Baseten), and 161 automated tests (147 offline + 14 browser E2E).
 
 ---
 

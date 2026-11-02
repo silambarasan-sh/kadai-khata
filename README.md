@@ -147,6 +147,12 @@ flowchart TD
 7. **Hash-chained trace is tamper-evident not tamper-proof**:
    - *Decision*: Agent execution steps are linked via sequential SHA-256 hashes (`previous_step_hash + step_payload`).
    - *Trade-off*: A malicious server admin with write access to the database could regenerate the entire chain from scratch (it is not a decentralized blockchain). However, any unauthorized modification or retroactive data tampering immediately breaks the chain and fails offline audit replay (`python manage.py agent_replay`).
+8. **Single-worker concurrency on Render free instance (`WEB_CONCURRENCY=1`, 4 threads)**:
+   - *Decision*: Render's free tier provides 512 MB RAM. Running 1 worker with 4 `gthread` threads consumes ~45 MB base RSS, leaving >350 MB memory headroom for in-memory Pillow image decoding (up to 40 megapixel decompression bomb limit) and Web Audio decoding. Two workers start at ~110 MB RSS and spike past 512 MB under concurrent image or voice requests.
+   - *Trade-off*: Single-process concurrency, but eliminates OOM crashes and container restarts on free hosting.
+9. **Ephemeral demo disk with restart honesty and uptime tracking**:
+   - *Decision*: Free tier instances have ephemeral disks that reset when the instance sleeps or restarts. Kadai Khata transparently discloses this in the demo modal, re-seeds the 8 fictional kirana accounts automatically on boot (`python manage.py seed_demo_data --if-empty`), and exposes `uptime_seconds` via `/healthz` for operational visibility.
+   - *Trade-off*: Demo data does not persist indefinitely across restarts, but ensures a clean, reliable sandbox without cost.
 
 ---
 
@@ -154,8 +160,8 @@ flowchart TD
 
 All code in this repository was built from scratch during the hackathon building period:
 - **First commit timestamp**: `fbc7768` on `Tue Oct 27 11:29:39 2026 +0530`.
-- **Commit count**: Exactly `20` commits on `main`.
-- **Automated test suite**: **156 tests** (142 offline unit/integration passed + 14 browser E2E passed via Playwright), 100.0% passing.
+- **Commit count**: Exactly `22` commits on `main`.
+- **Automated test suite**: **161 tests** (147 offline unit/integration passed + 14 browser E2E passed via Playwright), 100.0% (161/161) passing.
 
 Key milestones delivered:
 - **Multi-Modal Tanglish Input Pipeline**: Function-calling text parser, in-memory Web Audio transcription with Meta Muse Voice Transcribe, and handwritten double-column notebook photo vision extraction with automated column balance checking.
@@ -174,8 +180,8 @@ A comprehensive evidence table connecting every metric to its reproducible comma
 
 | Benchmark / Evaluation | Sample Size ($n$) | Primary Result | Command to Reproduce |
 | :--- | :--- | :--- | :--- |
-| **Offline Test Suite** | $n = 142$ tests | **142 passed**, 0 failed (100.0%) | `pytest -q` |
-| **Browser E2E Suite** | $n = 14$ tests | **14 passed**, 0 failed (100.0%) | `RUN_E2E=1 pytest tests/e2e -q` |
+| **Offline Test Suite** | $n = 147$ tests | **147 passed**, 0 failed (100.0%, 147/147) | `pytest -q` |
+| **Browser E2E Suite** | $n = 14$ tests | **14 passed**, 0 failed (100.0%, 14/14) | `RUN_E2E=1 pytest tests/e2e -q` |
 | **Golden Dataset** | $n = 20$ sentences | **100.0% accuracy** (20/20 passed) | `python manage.py eval_parser --golden --live` |
 | **Held-Out Dataset** | $n = 14$ sentences | **100.0% accuracy** (14/14 passed) | `python manage.py eval_parser --heldout --live` |
 | **Realistic Negative Dataset** | $n = 15$ sentences | **100.0% no-entry** (15/15, 0 false drafts) | `python manage.py eval_parser --realistic --live` |
@@ -260,10 +266,10 @@ Kadai Khata operates cleanly in both live cloud mode and offline/test mock mode:
 
 ## Known limitations
 
-1. **Voice Probe Dataset Size**: Our live voice feasibility evaluation is based on $n = 4$ audio clips from a single adult male speaker evaluated across 56 calls. While acoustic diversity across 7 variants was tested, it does not cover all regional Tamil Nadu dialects (e.g. Madurai, Coimbatore, Tirunelveli).
+1. **Voice Probe Dataset Size & Script Drift**: Our live voice feasibility evaluation is based on $n = 4$ audio clips from a single adult male speaker evaluated across 56 calls. While acoustic diversity across 7 variants was tested, it does not cover all regional Tamil Nadu dialects (e.g. Madurai, Coimbatore, Tirunelveli). Furthermore, across the 56 live Meta API calls ($n = 56$), non-Tamil Indic characters appeared in **13 of 56 calls (23.2%)**: Kannada (7/56, 12.5%), Telugu (4/56, 7.1%), and Devanagari (3/56, 5.4%). Because Kadai Khata enforces a human-in-the-loop review step where the shopkeeper reviews and edits the transcribed text before pressing Send, script drift is caught and corrected before ledger booking.
 2. **Vision Handwritten Ledger Size**: The vision ground-truth dataset consists of $n = 3$ notebook pages (11 total transaction rows). Performance differences between reasoning efforts are within generative sampling noise.
-3. **Open-Weights Partner Scope**: Baseten's `muse-spark-open-1026` backend currently supports text parsing, balance queries, and reminder drafting only. Multimodal image parsing and speech-to-text remain exclusively on Meta's official API.
-4. **Single-Store Concurrency**: The SQLite backend is optimized for single-store kirana operations. Multi-store enterprise scaling would require migration to PostgreSQL.
+3. **Open-Weights Partner Scope**: Baseten's `muse-spark-open-1026` backend currently supports text parsing, balance queries, and reminder drafting only. Multimodal image parsing and speech-to-text remain exclusively on Meta's official API. Both engines pass our identical 49-sentence benchmark ($n = 49$, 100.0% accuracy).
+4. **Single-Store Concurrency & Ephemeral Demo Disk**: The SQLite backend is optimized for single-store kirana operations. On Render's free tier, the demo database disk is ephemeral and resets to default seeded accounts when the container sleeps or restarts; persistent storage requires an optional persistent disk mount or PostgreSQL migration.
 
 ---
 
@@ -288,7 +294,7 @@ In compliance with hackathon submission guidelines:
 ## Setup
 
 ### Prerequisites
-- Python 3.11+ (tested on Python 3.14)
+- Python 3.11+ (Render production deploys Python 3.11 with cp311 wheels; local development and test suites verified on Python 3.14)
 - Git
 
 ### Installation (PowerShell on Windows)

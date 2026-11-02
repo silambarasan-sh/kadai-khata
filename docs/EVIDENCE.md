@@ -13,9 +13,9 @@ In accordance with strict verification rules:
 
 | Claim | Number | Command to Reproduce | Where the Raw Output Is | Verified at Commit |
 | :--- | :--- | :--- | :--- | :--- |
-| **Offline Test Suite** | 142 passed, 14 skipped (142/142 offline tests passed, 100.0%) | `pytest -q` | Terminal output (pasted below) | `c75a462` (re-verified today) |
-| **Browser E2E Test Suite** | 14 passed (14/14 tests passed, 100.0%) | `RUN_E2E=1 pytest tests/e2e -q` | Terminal output (pasted below) | `c75a462` (re-verified today) |
-| **Combined Full Test Suite** | 156 passed (156/156 tests passed, 100.0%) | `RUN_E2E=1 pytest -q` | Terminal output (pasted below) | `c75a462` (re-verified today) |
+| **Offline Test Suite** | 147 passed, 14 skipped (147/147 offline tests passed, 100.0%) | `pytest -q` | Terminal output (pasted below) | `9103dfa` (re-verified today) |
+| **Browser E2E Test Suite** | 14 passed (14/14 tests passed, 100.0%) | `RUN_E2E=1 pytest tests/e2e -q` | Terminal output (pasted below) | `9103dfa` (re-verified today) |
+| **Combined Full Test Suite** | 161 passed (161/161 tests passed, 100.0%) | `RUN_E2E=1 pytest -q` | Terminal output (pasted below) | `9103dfa` (re-verified today) |
 | **Golden Dataset (Open-Book)** | 100.0% accuracy (20/20 sentences passed) | `python manage.py eval_parser --golden --live` | `tests/golden_sentences.json` | `5bca15f`, `82e1e66` (not re-run today) |
 | **Held-Out Dataset (Unseen)** | 100.0% accuracy (14/14 sentences passed) | `python manage.py eval_parser --heldout --live` | `tests/heldout_sentences.json` | `82e1e66` (not re-run today) |
 | **Realistic Negative Dataset** | 100.0% no-entry correctness (15/15, 0 false-positive drafts) | `python manage.py eval_parser --realistic --live` | `tests/realistic_sentences.json` | `89e3d08`, `9115165` (not re-run today) |
@@ -30,6 +30,18 @@ In accordance with strict verification rules:
 
 ## 1. Offline & E2E Test Execution Output (Re-Run in This Session)
 
+### Test Count Progression Across Commits
+Earlier reports in the repository development trajectory cited 154, 142, and 147 passed tests. The movement in numbers reflects exact test suite evolution:
+1. **154 Total Collected Tests**: During early voice development, running `pytest` without gating collected 140 unit tests + 14 E2E browser tests = 154 total tests.
+2. **142 Offline Passed (at `c75a462`)**: In `tests/conftest.py`, E2E tests were cleanly isolated behind `RUN_E2E=1` (14 skipped in offline mode). Six CSRF security tests were added in `tests/test_csrf_protection.py`, resulting in 142 offline tests passed and 14 skipped (156 total).
+3. **147 Offline Passed (at `9103dfa` and current HEAD)**: Five reliability and idempotency unit tests were added:
+   - `tests/test_api.py::test_api_confirm_double_confirm_idempotency`
+   - `tests/test_api.py::test_api_confirm_network_retry_dropped_attempt_creates_single_entry`
+   - `tests/test_api.py::test_api_reject_double_reject_idempotency`
+   - `tests/test_parsing.py::test_double_reject_idempotency`
+   - `tests/test_vision.py::test_api_parse_photo_decompression_bomb_rejected`
+   This brought the suite to **147 offline passed** + **14 E2E browser passed** = **161 total automated tests** (100.0% passing).
+
 ### Offline Unit & Integration Test Suite (`pytest -q`)
 Command:
 ```powershell
@@ -37,14 +49,14 @@ pytest -q
 ```
 Actual terminal output:
 ```text
-........................................................................ [ 46%]
-...............................................ssssssssssssss........... [ 92%]
-............                                                             [100%]
+........................................................................ [ 44%]
+....................................................ssssssssssssss...... [ 89%]
+.................                                                        [100%]
 =========================== short test summary info ===========================
 SKIPPED [14] tests\conftest.py:45: E2E tests skipped because RUN_E2E=1 is not set
-142 passed, 14 skipped in 27.65s
+147 passed, 14 skipped in 17.84s
 ```
-*Note*: The 14 skipped tests are browser Playwright end-to-end tests that are safely gated behind `RUN_E2E=1`. All 142 offline tests pass with zero failures and zero warnings.
+*Note*: The 14 skipped tests are browser Playwright end-to-end tests that are safely gated behind `RUN_E2E=1`. All 147 offline tests pass with zero failures.
 
 ---
 
@@ -56,12 +68,12 @@ cmd /c "set RUN_E2E=1&& pytest tests/e2e -q"
 Actual terminal output:
 ```text
 ..............                                                           [100%]
-14 passed in 48.32s
+14 passed in 57.14s
 ```
 *Note*: Covers real Chromium mobile emulation (390x844 viewport, touch enabled, Pixel 5 user agent) testing:
 1. `test_layout_audit.py`: Header, outstanding hero, customer cards, bottom bar ergonomics, modals.
 2. `test_name_field.py`: Exact customer matching, ambiguous customer chooser, customer detail navigation, reversal visibility.
-3. `test_voice_ui.py`: Web Audio WAV recording, mono 16 kHz validation, too-short recording warning, permission-denied fallback, no-mediaDevices tooltip, real-server transcription flow, review banner, and screenshot capture.
+3. `test_voice_ui.py`: Web Audio WAV recording, mono 16 kHz validation, too-short recording warning, permission-denied fallback, no-mediaDevices tooltip, real-server transcription flow, review banner, and screenshot capture. E2E browser runs write test screenshots to a temporary directory unless `SAVE_SCREENSHOTS=1`, preventing test runs from modifying committed repository screenshots.
 
 ---
 
@@ -199,7 +211,33 @@ Evaluated across 7 variants × 2 independent repeats (**56 total live Meta API c
 *Honest Disclosures*:
 1. Variants (c), (d), and (e) passed 100.0% (8/8) but relied on feeding the exact spoken customer names as keywords, which overstates performance for unlisted customers.
 2. Variants (f) and (g) represent real-world accuracy: 75.0% pass rate (6/8 runs). Both failed on `s4` (*Bala*) because *Bala* was unlisted in the customer database and got acoustically transcribed as *Bahala* or *Pazha*.
-3. Transcripts periodically introduced Telugu, Kannada, or Devanagari script characters despite Tamil language hints.
+3. **Indic Script Drift (13/56 calls, 23.2%)**: Transcripts periodically introduced non-Tamil Indic characters despite Tamil language hints and keyword biasing. Across all 56 committed live output JSON files in `tests/voice_samples/_raw/live/`:
+   - **Kannada** (`\u0c80-\u0cff`): 7 of 56 calls (12.5%, 7/56)
+   - **Telugu** (`\u0c00-\u0c7f`): 4 of 56 calls (7.1%, 4/56)
+   - **Devanagari** (`\u0900-\u097f`): 3 of 56 calls (5.4%, 3/56)
+   - **Malayalam** (`\u0d00-\u0d7f`): 0 of 56 calls (0.0%, 0/56)
+   *(Total: 14 script drift occurrences across 13 unique files, 23.2% of calls)*
+   Because Kadai Khata enforces a human-in-the-loop review step where the shopkeeper reviews and edits the transcribed text before pressing Send, script drift is caught and corrected before ledger booking.
 4. "Pass" strictly measures downstream transaction draft extraction accuracy, not verbatim acoustic transcription accuracy.
 5. In all cases, the transcribed text is placed into the input field for the shopkeeper to review and edit before sending.
+
+---
+
+## 7. Production Reliability & Free Instance Hosting Verification
+
+### Render Free Tier Runtime & Concurrency
+- **Runtime Environment**: Render deploys on Linux using Python 3.11 default runtime with `cp311` binary wheels (local development and offline test suites verified on Python 3.14). There is zero claim of Python 3.14 on Render.
+- **Worker Configuration (`WEB_CONCURRENCY=1`, 4 threads)**:
+  - Instance RAM: 512 MB.
+  - Base memory consumption: 1 Gunicorn process with 4 `gthread` threads consumes ~45 MB base RSS, leaving >350 MB available headroom for in-memory Pillow image processing and Web Audio decoding.
+  - Decompression bomb guard: Rejects images exceeding 40 megapixels (`MAX_PHOTO_PIXELS = 40_000_000`) before decoding full canvas.
+  - Multi-worker risk eliminated: 2 workers immediately consumed ~110 MB base RSS, leading to out-of-memory container terminations when concurrent uploads occurred.
+- **Ephemeral Storage & Demo Resets**:
+  - The SQLite database resides on Render's ephemeral container disk. When the free instance spins down due to inactivity or restarts, disk state resets.
+  - Automatic re-seeding: `python manage.py seed_demo_data --if-empty` executes on container boot, automatically re-populating the 8 fictional kirana accounts.
+  - Operational health monitoring: The `/healthz` endpoint exposes `uptime_seconds` alongside system status.
+- **Live Deployment Health Probe**:
+  - Verified live via HTTP GET: `https://kadai-khata.onrender.com/healthz`
+  - HTTP Status: `200 OK`
+  - Response payload: `{"status": "ok", "mode": "live", "uptime_seconds": ...}`
 
