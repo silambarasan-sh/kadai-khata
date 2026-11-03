@@ -5,7 +5,7 @@ This file contains the verified text drafts for the submission form. All figures
 ---
 
 ### Project Name
-Kadai Khata (கடை खाता)
+Kadai Khata (கடை கணக்கு)
 
 ---
 
@@ -36,13 +36,13 @@ For daily operations, a verifiable collections agent analyzes aging customer bal
 ---
 
 ### How We Used Meta's Models (150 words)
-We integrated three Meta models via OpenAI-compatible endpoints with strict domain separation:
+We integrated three Meta models via Meta Model API (Chat Completions with function tools for Muse Spark; multipart HTTP for Voice Transcribe) with strict domain separation:
 
 1. **Meta Muse Spark 1.3**: Used as our primary text, reasoning, and vision engine. For natural Tanglish text input, it performs multi-action function calling to extract customer names, amounts, and credit/payment direction. In vision mode, it parses base64 handwritten notebook photos into structured ledger drafts while detecting smudges and crossed-out rows. In collections mode, it plans daily reminder workflows.
 2. **Meta Muse Voice Transcribe**: Transcribes spoken Tanglish audio in memory, phonetic-grounded with dynamic customer keyword biasing.
 3. **Meta Muse Spark Open (via Baseten)**: Integrated as an optional open-weights partner engine for text parsing, balance queries, and reminder drafting.
 
-Empirically, tuning reasoning effort to minimal reduced latency by 54.7% (2542.9 ms vs 5615.4 ms) while maintaining 100.0% accuracy across our 49-sentence benchmark.
+Latency: 34 sentences x 3 runs: 5615 ms default vs 2543 ms minimal; 49-sentence engine comparison: 3654 ms vs 2055 ms.
 
 ---
 

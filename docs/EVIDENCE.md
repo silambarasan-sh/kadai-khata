@@ -16,15 +16,15 @@ In accordance with strict verification rules:
 | **Offline Test Suite** | 147 passed, 14 skipped (147/147 offline tests passed, 100.0%) | `pytest -q` | Terminal output (pasted below) | `e361c5e` |
 | **Browser E2E Test Suite** | 14 passed (14/14 tests passed, 100.0%) | `RUN_E2E=1 pytest tests/e2e -q` | Terminal output (pasted below) | `e361c5e` |
 | **Combined Full Test Suite** | 161 passed (161/161 tests passed, 100.0%) | `RUN_E2E=1 pytest -q` | Terminal output (pasted below) | `e361c5e` |
-| **Golden Dataset (Open-Book)** | 100.0% accuracy (20/20 sentences passed) | `python manage.py eval_parser --golden --live` | `tests/golden_sentences.json` | `5bca15f`, `82e1e66` (not re-run today) |
-| **Held-Out Dataset (Unseen)** | 100.0% accuracy (14/14 sentences passed) | `python manage.py eval_parser --heldout --live` | `tests/heldout_sentences.json` | `82e1e66` (not re-run today) |
-| **Realistic Negative Dataset** | 100.0% no-entry correctness (15/15, 0 false-positive drafts) | `python manage.py eval_parser --realistic --live` | `tests/realistic_sentences.json` | `89e3d08`, `9115165` (not re-run today) |
+| **Golden Dataset [open-book (written alongside the prompt)]** | 100.0% accuracy (20/20 sentences passed) | `python manage.py eval_parser --file tests/golden_sentences.json` | `tests/golden_sentences.json` | `5bca15f`, `82e1e66` (not re-run today) |
+| **Held-Out Dataset [visible to the coding agent in the same session as a prompt restructure, contamination cannot be ruled out]** | 100.0% accuracy (14/14 sentences passed) | `python manage.py eval_parser --file tests/heldout_sentences.json` | `tests/heldout_sentences.json` | `82e1e66` (not re-run today) |
+| **Realistic Negative Dataset** | 100.0% no-entry correctness (15/15, 0 false-positive drafts) | `python manage.py eval_parser --file tests/realistic_sentences.json` | `tests/realistic_sentences.json` | `89e3d08`, `9115165` (not re-run today) |
 | **Multi-Run Reasoning Effort Eval** | 100.0% accuracy on minimal effort (102/102 runs) vs 99.0% on default (101/102 runs); 54.7% latency reduction | `python manage.py eval_parser --compare --repeat 3 --show-failures` | README table (lines 145–155) (204 total live calls across 34 sentences × 3 repeats) | `6493877` (not re-run today) |
 | **49-Sentence Dual Engine Comparison** | 100.0% accuracy across all engines (49/49 sentences each on Meta Spark 1.3 default, Meta Spark 1.3 minimal, and Baseten Muse Spark Open) | `python manage.py eval_parser --compare-providers` | README table (lines 202–212) | `9115165` (not re-run today) |
-| **Partner Feasibility Probe (Baseten)** | 7 of 7 dimensions verified (chat, tools, tool_choice auto/required, parallel tools, reasoning attribute, usage breakdown, latency) | `python manage.py partner_probe --live` | `tests/partner_probe_findings.json` | `38404b2` (not re-run today) |
-| **Collections Agent Benchmark** | 100.0% overdue coverage (3.0/3 overdue accounts covered across 3 runs), 0.0 zero-balance proposed, 0/3 adversarial prompt injections obeyed, 3/3 SHA-256 hash chains valid | `python manage.py eval_agent --runs 3 --live` | Isolated temporary SQLite DB; replayed via `python manage.py agent_replay <run_id>`; README table (lines 335–340) | `dd55066`, `508cec1` (not re-run today) |
-| **Notebook Photo Extraction Benchmark** | 100.0% recall (11/11 rows) on provisional GT, 90.9%–100.0% recall on owner-verified GT across 5 runs ($n = 3$ images, 11 rows); minimal effort is 2x to 5x faster (~4.5s–5.4s vs ~11s–13.6s) | `python manage.py eval_vision --live --repeat 1` | `tests/vision_samples/newpage1.json`, `newpage2.json`, `newpage3.json`; README table (lines 408–415) | `508cec1`, `6493877` (not re-run today) |
-| **Voice Transcription Feasibility Probe** | 56 live Meta API calls across 7 variants x 2 repeats on 4 audio clips (1 speaker); app-realistic variants (f) and (g) achieved 75.0% pass rate (6/8 runs each) | `python manage.py voice_probe --live --runs 2` | `tests/voice_samples/_raw/live/` (56 JSON files `s1_a_rep1.json` – `s4_g_rep2.json`), `tests/voice_samples/expected.txt`, `tests/voice_samples/expected_drafts.json` | `87b8b8d`, `9115165`, `e60f9a9` (not re-run today) |
+| **Partner Feasibility Probe (Baseten)** | 7 of 7 dimensions verified (chat, tools, tool_choice auto/required, parallel tools, reasoning attribute, usage breakdown, latency) | `python manage.py partner_probe` | `tests/partner_probe_findings.json` | `38404b2` (not re-run today) |
+| **Collections Agent Benchmark [one scripted 10-customer scenario, 3 runs]** | 100.0% overdue coverage (3.0/3 overdue accounts covered across 3 runs), 0.0 zero-balance proposed, 0/3 adversarial prompt injections obeyed, 3/3 SHA-256 hash chains valid | `python manage.py eval_agent --runs 3 --live` | Isolated temporary SQLite DB; replayed via `python manage.py agent_replay <run_id>`; README table (lines 335–340) | `dd55066`, `508cec1` (not re-run today) |
+| **Notebook Photo Extraction Benchmark** | Owner-verified GT ($n = 3$ images, 11 rows): Run A default effort recall 90.9% (10/11), exact-field 81.8% (9/11); Run B default effort recall 100.0% (11/11), exact-field 90.9% (10/11); minimal effort recall 90.9% (10/11), exact-field 90.9% (10/11); Rani ₹200 misread as ₹260 across runs. (Provisional GT 100% recall mentioned as history). | `python manage.py eval_vision --live --repeat 1` | `tests/vision_samples/newpage1.json`, `newpage2.json`, `newpage3.json`; README table (lines 408–415) | `508cec1`, `6493877` (not re-run today) |
+| **Voice Transcription Feasibility Probe** | 56 live Meta API calls across 7 variants x 2 repeats on 4 audio clips (1 speaker); app-realistic variants (f) and (g) achieved 75.0% pass rate (6/8 runs each; parser produced the expected draft from the transcript) | `python manage.py voice_probe --repeats 2` | `tests/voice_samples/_raw/live/` (56 JSON files `s1_a_rep1.json` – `s4_g_rep2.json`), `tests/voice_samples/expected.txt`, `tests/voice_samples/expected_drafts.json` | `87b8b8d`, `9115165`, `e60f9a9` (not re-run today) |
 
 ---
 
@@ -81,11 +81,11 @@ Result: **161 passed** (161/161, 100.0%) in 74.88s.
 *(Live API evals previously conducted; not re-run today to prevent token burn.)*
 
 ### Datasets Tested
-1. **Open-Book Golden Set (`tests/golden_sentences.json`)**: $n = 20$ sentences.
-   - Hand-crafted during parser development to evaluate multi-person split statements, colloquial Tamil numerals (*"moonu nooru"*, *"aayiram"*), payment vs udhaar directionality, and direct prompt injections.
+1. **Open-Book Golden Set (`tests/golden_sentences.json`) [open-book (written alongside the prompt)]**: $n = 20$ sentences.
+   - Hand-crafted during parser development (written alongside the prompt) to evaluate multi-person split statements, colloquial Tamil numerals (*"moonu nooru"*, *"aayiram"*), payment vs udhaar directionality, and direct prompt injections.
    - Result: **100.0% (20/20)** passed.
-2. **Frozen Held-Out Set (`tests/heldout_sentences.json`)**: $n = 14$ unseen sentences.
-   - Committed in `82e1e66` (Tue Oct 27 12:39:32 2026 +0530).
+2. **Held-Out Set (`tests/heldout_sentences.json`) [visible to the coding agent in the same session as a prompt restructure, contamination cannot be ruled out]**: $n = 14$ sentences.
+   - Committed in `82e1e66` (Tue Oct 27 12:39:32 2026 +0530). Visible to the coding agent in the same session as a prompt restructure; contamination cannot be ruled out.
    - Evaluates unseen regional phrasing (*"nooththi aimbadhu"*, *"saamaan kodutheen"*, *"lakh"*).
    - Verbatim Contamination Audit: Exact grep of `ledger/prompts.py` for held-out vocabulary showed **0 verbatim matches**.
    - Result: **100.0% (14/14)** passed.
@@ -132,10 +132,10 @@ Evaluated across all 49 benchmark sentences ($n = 49$: 20 golden + 14 held-out +
 
 ---
 
-## 4. Collections Agent Benchmark (`eval_agent`)
+## 4. Collections Agent Benchmark [one scripted 10-customer scenario, 3 runs] (`eval_agent`)
 *(Live API evals previously conducted; not re-run today.)*
 
-Evaluated against a scripted 10-customer scenario ($n = 3$ consecutive runs; 3 overdue 60+ days, 2 active, 2 zero-balance, 1 adversarial prompt injection note, 2 mixed) on an isolated temporary SQLite database:
+Evaluated against one scripted 10-customer scenario ($n = 3$ consecutive runs; 3 overdue 60+ days, 2 active, 2 zero-balance, 1 adversarial prompt injection note, 2 mixed) on an isolated temporary SQLite database:
 Command:
 ```powershell
 python manage.py eval_agent --runs 3 --live
@@ -158,19 +158,32 @@ python manage.py eval_agent --runs 3 --live
 ## 5. Notebook Photo Vision Benchmark (`eval_vision`)
 *(Live API evals previously conducted; not re-run today.)*
 
-Evaluated against owner-verified ground truth across 3 handwritten ledger notebook pages ($n = 3$ images, 11 total ground truth rows) in `tests/vision_samples/`:
+Evaluated across 3 handwritten ledger notebook pages ($n = 3$ images, 11 total ground truth rows) in `tests/vision_samples/`:
 Command:
 ```powershell
 python manage.py eval_vision --live
 ```
 
+### Owner-Verified Ground Truth Results ($n = 3$ images, 11 rows)
+Lead results evaluated against final owner-verified ground truth (where Rani is ₹200, which the model consistently misread as ₹260):
+
+| Run / Prompt | Reasoning Effort | Overall Recall | Exact-Field Accuracy | False Rows | Latency | Ground Truth Context |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Prompt 10.1 (Run A)** | Default (`""`) | **90.9%** (10/11) | **81.8%** (9/11) | **1** | 13.58s | Owner-verified GT (Rani = ₹200; misread as ₹260) |
+| **Prompt 10.1 (Run B)** | Default (`""`) | **100.0%** (11/11) | **90.9%** (10/11) | **0** | 11.12s | Owner-verified GT (Rani = ₹200; misread as ₹260) |
+| **Prompt 10.1** | Minimal (`minimal`) | **90.9%** (10/11) | **90.9%** (10/11) | **1** | **5.39s** | Owner-verified GT (Rani = ₹200; misread as ₹260) |
+
+Across all owner-verified runs, the model misread Rani's amount as ₹260 instead of ₹200 due to ambiguous handwriting on the notebook page.
+
+### Historical Development Runs (Provisional Ground Truth)
+During earlier development, Prompt 10 was evaluated against a provisional ground truth that had transcribed Rani as ₹260:
+
 | Run / Prompt | Reasoning Effort | Overall Recall | Exact-Field Accuracy | False Rows | Latency | Ground Truth Context |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Prompt 10** | Default (`""`) | **100.0%** (11/11) | **100.0%** (11/11) | **0** | ~12.8s | Evaluated against provisional GT (Rani = ₹260) |
 | **Prompt 10** | Minimal (`minimal`) | **81.8%** (9/11) | **81.8%** (9/11) | **2** | **~4.5s** | Evaluated against provisional GT (Rani = ₹260) |
-| **Prompt 10.1 (Run A)** | Default (`""`) | **90.9%** (10/11) | **81.8%** (9/11) | **1** | 13.58s | Owner-verified GT (Rani = ₹200; misread as ₹260) |
-| **Prompt 10.1 (Run B)** | Default (`""`) | **100.0%** (11/11) | **90.9%** (10/11) | **0** | 11.12s | Owner-verified GT (Rani = ₹200; misread as ₹260) |
-| **Prompt 10.1** | Minimal (`minimal`) | **90.9%** (10/11) | **90.9%** (10/11) | **1** | **5.39s** | Owner-verified GT (Rani = ₹200; misread as ₹260) |
+
+These provisional runs are documented here strictly as development history.
 
 *Caveat & Safety Layer*:
 - Due to small sample size ($n = 3$ images, 11 rows), performance differences between default and minimal effort are within generative variance. Default effort is retained for the demo to minimize false rows.
@@ -209,7 +222,7 @@ Evaluated across 7 variants × 2 independent repeats (**56 total live Meta API c
    - **Malayalam** (`\u0d00-\u0d7f`): 0 of 56 calls (0.0%, 0/56). A manual desktop test on the live Render app returned one transcript with a Malayalam-looking fragment; Malayalam appeared in 0 of the 56 recorded probe calls.
    *(Total: 14 script drift occurrences across 13 unique files, 23.2% of calls)*
    Because Kadai Khata enforces a human-in-the-loop review step where the shopkeeper reviews and edits the transcribed text before pressing Send, script drift is caught and corrected before ledger booking.
-4. "Pass" strictly measures downstream transaction draft extraction accuracy, not verbatim acoustic transcription accuracy.
+4. "Pass" strictly measures downstream transaction draft extraction accuracy (the parser produced the expected draft from the transcript), not verbatim acoustic transcription accuracy.
 5. In all cases, the transcribed text is placed into the input field for the shopkeeper to review and edit before sending.
 
 ---
@@ -217,7 +230,7 @@ Evaluated across 7 variants × 2 independent repeats (**56 total live Meta API c
 ## 7. Production Reliability & Free Instance Hosting Verification
 
 ### Render Free Tier Runtime & Concurrency
-- **Runtime Environment**: Render deploys on Linux using Python 3.11 default runtime with `cp311` binary wheels (local development and offline test suites verified on Python 3.14). There is zero claim of Python 3.14 on Render.
+- **Runtime Environment**: Python version on Render is set by `PYTHON_VERSION` in `render.yaml`; local development used 3.14.
 - **Worker Configuration (`WEB_CONCURRENCY=1`, 4 threads)**:
   - Instance RAM: 512 MB (per Render's plan page, to be verified).
   - Worker concurrency: one worker leaves more headroom on a small free instance; we did not confirm that memory caused the intermittent network errors seen in early phone tests.
