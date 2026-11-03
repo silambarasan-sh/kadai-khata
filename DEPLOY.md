@@ -41,10 +41,9 @@ exec gunicorn kadai_khata.wsgi:application \
 ```
 
 > [!IMPORTANT]
-> **Why 1 Worker is Safer on Render's 512 MB Free Instance**:
-> - **Memory Ceiling**: Render free-tier instances have a strict 512 MB RAM ceiling. Crossing this limit causes the Linux kernel OOM (Out Of Memory) killer to immediately terminate the container.
-> - **Worker Duplication Avoidance**: Each Gunicorn process duplicates Python runtime memory (~45–55 MB base RSS). Running 2 workers immediately consumes ~110 MB before processing any traffic. When heavy operations occur (such as Pillow decoding camera photos up to 40 megapixels or buffering audio files), concurrent worker spikes can easily cross 512 MB.
-> - **Threaded I/O Concurrency**: With a single worker process (`WEB_CONCURRENCY=1`) and 4 `gthread` threads, all network-bound concurrency (waiting on Meta Model API or Baseten inference) runs across threads within a single memory footprint. This leaves >350 MB of free RAM headroom.
+> **Why 1 Worker is Configured on Render's Free Instance**:
+> - **Worker Concurrency & Headroom**: Render's free tier provides 512 MB RAM (per Render's plan page, to be verified). One worker leaves more headroom on a small free instance; we did not confirm that memory caused the intermittent network errors seen in early phone tests.
+> - **Threaded I/O Concurrency**: With a single worker process (`WEB_CONCURRENCY=1`) and 4 `gthread` threads, all network-bound concurrency (waiting on Meta Model API or Baseten inference) runs across threads within a single memory footprint.
 > - **Extended Timeout (120s)**: Complex multimodal vision inference (`/api/parse-photo/`) can take 20–30 seconds on large handwritten pages. The 120s timeout prevents premature worker termination.
 > - **Request Recycling (`--max-requests 200 --max-requests-jitter 20`)**: Recycles the worker process after 200 requests (with random jitter to prevent thundering herds), returning fragmented heap memory and native C-library buffers back to the OS.
 
@@ -121,7 +120,7 @@ All environment variables use placeholder values below. Never commit real keys.
 | `ALLOWED_HOSTS` | Required | `.onrender.com,localhost,127.0.0.1` | Comma-separated list of valid host headers. |
 | `CSRF_TRUSTED_ORIGINS` | Required | `https://*.onrender.com` | Comma-separated list of trusted origins for CSRF protection. |
 | `DJANGO_ENABLE_ADMIN` | Optional | `0` | Set to `1` to enable the `/admin/` route. Default `0` disables it in public demos. |
-| `WEB_CONCURRENCY` | Optional | `1` | Number of Gunicorn worker processes (default 1 to fit 512 MB free tier). |
+| `WEB_CONCURRENCY` | Optional | `1` | Number of Gunicorn worker processes (default 1 to leave headroom on a small free tier instance; 512 MB RAM per Render's plan page, to be verified). |
 | `DATABASE_PATH` | Optional | `""` | Optional explicit path for the SQLite database (defaults to `BASE_DIR / db.sqlite3`). |
 | `DEMO_MODE` | Optional | `1` | Enables public demo banner, hourly rate limits, and daily live budget tracking. |
 | `DEMO_DAILY_LIVE_CALLS` | Optional | `300` | Global daily live Meta API request budget (resets at UTC midnight). |
